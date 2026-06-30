@@ -1,0 +1,255 @@
+from django.db import models
+from django.contrib.auth.models import User
+from django.utils import timezone
+from django.utils.text import slugify
+import uuid
+
+
+class Category(models.Model):
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    icon = models.CharField(max_length=50, default='fas fa-tag', help_text='FontAwesome class')
+    color = models.CharField(max_length=7, default='#4A90D9')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name_plural = 'Categories'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class Tag(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+
+    def __str__(self):
+        return self.name
+
+
+class Ticket(models.Model):
+    PRIORITY_LOW = 'LOW'
+    PRIORITY_MEDIUM = 'MEDIUM'
+    PRIORITY_HIGH = 'HIGH'
+    PRIORITY_CRITICAL = 'CRITICAL'
+
+    PRIORITY_CHOICES = [
+        (PRIORITY_LOW, 'Low'),
+        (PRIORITY_MEDIUM, 'Medium'),
+        (PRIORITY_HIGH, 'High'),
+        (PRIORITY_CRITICAL, 'Critical'),
+    ]
+
+    STATUS_OPEN = 'OPEN'
+    STATUS_IN_PROGRESS = 'IN_PROGRESS'
+    STATUS_PENDING = 'PENDING'
+    STATUS_RESOLVED = 'RESOLVED'
+    STATUS_CLOSED = 'CLOSED'
+    STATUS_REOPENED = 'REOPENED'
+
+    STATUS_CHOICES = [
+        (STATUS_OPEN, 'Open'),
+        (STATUS_IN_PROGRESS, 'In Progress'),
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_RESOLVED, 'Resolved'),
+        (STATUS_CLOSED, 'Closed'),
+        (STATUS_REOPENED, 'Reopened'),
+    ]
+
+    SOURCE_EMAIL = 'EMAIL'
+    SOURCE_PHONE = 'PHONE'
+    SOURCE_WALK_IN = 'WALK_IN'
+    SOURCE_WEB = 'WEB'
+    SOURCE_VOIP = 'VOIP'
+
+    SOURCE_CHOICES = [
+        (SOURCE_EMAIL, 'Email'),
+        (SOURCE_PHONE, 'Phone'),
+        (SOURCE_WALK_IN, 'Walk-In'),
+        (SOURCE_WEB, 'Web Portal'),
+        (SOURCE_VOIP, 'VoIP Call'),
+    ]
+
+    ticket_id = models.CharField(max_length=20, unique=True, editable=False)
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='tickets')
+    tags = models.ManyToManyField(Tag, blank=True)
+
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default=PRIORITY_MEDIUM)
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default=STATUS_OPEN)
+    source = models.CharField(max_length=10, choices=SOURCE_CHOICES, default=SOURCE_WEB)
+
+    # People
+    requester = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='tickets_raised')
+    requester_name = models.CharField(max_length=150, blank=True, help_text='If requester is not a system user')
+    requester_email = models.EmailField(blank=True)
+    requester_phone = models.CharField(max_length=30, blank=True)
+    requester_department = models.CharField(max_length=100, blank=True)
+    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets_assigned')
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    due_date = models.DateTimeField(null=True, blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+    # SLA
+    sla_breach = models.BooleanField(default=False)
+    resolution_time_minutes = models.PositiveIntegerField(null=True, blank=True)
+
+    # Linked VoIP call
+    voip_call = models.ForeignKey('voip.VoIPCall', on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets')
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        if not self.ticket_id:
+            prefix = 'ND'
+            from django.db.models import Max
+            result = Ticket.objects.aggregate(max_id=Max('pk'))
+            num = (result['max_id'] or 1000) + 1
+            self.ticket_id = f'{prefix}{num:06d}'
+
+        if self.status == self.STATUS_RESOLVED and not self.resolved_at:
+            self.resolved_at = timezone.now()
+            if self.created_at:
+                delta = self.resolved_at - self.created_at
+                self.resolution_time_minutes = int(delta.total_seconds() / 60)
+
+        if self.status == self.STATUS_CLOSED and not self.closed_at:
+            self.closed_at = timezone.now()
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'[{self.ticket_id}] {self.title}'
+
+    @property
+    def is_overdue(self):
+        if self.due_date and self.status not in [self.STATUS_RESOLVED, self.STATUS_CLOSED]:
+            return timezone.now() > self.due_date
+        return False
+
+    @property
+    def priority_color(self):
+        colors = {
+            'LOW': '#28a745',
+            'MEDIUM': '#ffc107',
+            'HIGH': '#fd7e14',
+            'CRITICAL': '#dc3545',
+        }
+        return colors.get(self.priority, '#6c757d')
+
+    @property
+    def status_color(self):
+        colors = {
+            'OPEN': '#17a2b8',
+            'IN_PROGRESS': '#007bff',
+            'PENDING': '#ffc107',
+            'RESOLVED': '#28a745',
+            'CLOSED': '#6c757d',
+            'REOPENED': '#dc3545',
+        }
+        return colors.get(self.status, '#6c757d')
+
+
+class TicketComment(models.Model):
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    body = models.TextField()
+    is_internal = models.BooleanField(default=False, help_text='Internal notes not visible to requester')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f'Comment on {self.ticket.ticket_id} by {self.author}'
+
+
+class TicketAttachment(models.Model):
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='attachments')
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    file = models.FileField(upload_to='ticket_attachments/%Y/%m/')
+    filename = models.CharField(max_length=255)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.filename
+
+
+class AuditLog(models.Model):
+    ACTION_CREATE = 'CREATE'
+    ACTION_UPDATE = 'UPDATE'
+    ACTION_DELETE = 'DELETE'
+    ACTION_VIEW = 'VIEW'
+    ACTION_LOGIN = 'LOGIN'
+    ACTION_LOGOUT = 'LOGOUT'
+    ACTION_ASSIGN = 'ASSIGN'
+    ACTION_STATUS_CHANGE = 'STATUS_CHANGE'
+    ACTION_COMMENT = 'COMMENT'
+    ACTION_CALL_START = 'CALL_START'
+    ACTION_CALL_END = 'CALL_END'
+
+    ACTION_CHOICES = [
+        (ACTION_CREATE, 'Created'),
+        (ACTION_UPDATE, 'Updated'),
+        (ACTION_DELETE, 'Deleted'),
+        (ACTION_VIEW, 'Viewed'),
+        (ACTION_LOGIN, 'Login'),
+        (ACTION_LOGOUT, 'Logout'),
+        (ACTION_ASSIGN, 'Assigned'),
+        (ACTION_STATUS_CHANGE, 'Status Changed'),
+        (ACTION_COMMENT, 'Comment Added'),
+        (ACTION_CALL_START, 'Call Started'),
+        (ACTION_CALL_END, 'Call Ended'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    model_name = models.CharField(max_length=50)
+    object_id = models.CharField(max_length=50, blank=True)
+    object_repr = models.CharField(max_length=255, blank=True)
+    changes = models.JSONField(null=True, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['model_name', 'object_id']),
+            models.Index(fields=['user', 'timestamp']),
+            models.Index(fields=['action']),
+        ]
+
+    def __str__(self):
+        return f'{self.timestamp} | {self.user} | {self.action} | {self.model_name}'
+
+
+class KnowledgeBase(models.Model):
+    title = models.CharField(max_length=255)
+    slug = models.SlugField(unique=True, blank=True)
+    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
+    content = models.TextField()
+    author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    is_published = models.BooleanField(default=True)
+    views = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.title)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.title

@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% block title %}Call Log{% endblock %}
+{% block page_title %}Call Log{% endblock %}
+{% block breadcrumb %}VoIP / Call History{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-6">
+    <div>
+        <h1>Call Log</h1>
+        <p class="text-muted" style="font-size:13px;">{{ total_count }} call{{ total_count|pluralize }} recorded</p>
+    </div>
+    <a href="{% url 'log_call' %}" class="btn btn-primary btn-sm"><i class="fas fa-phone-plus"></i> Log Call</a>
+</div>
+
+<!-- Filters -->
+<div class="card mb-6">
+    <div class="card-body" style="padding:14px;">
+        <form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+            <input type="text" name="search" class="form-control" placeholder="Search number, name, notes..." value="{{ filters.search }}" style="flex:1;min-width:180px;">
+            <select name="status" class="form-select" style="min-width:130px;">
+                <option value="">All Statuses</option>
+                {% for val, label in status_choices %}<option value="{{ val }}" {% if filters.status == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+            <select name="direction" class="form-select" style="min-width:130px;">
+                <option value="">All Directions</option>
+                {% for val, label in direction_choices %}<option value="{{ val }}" {% if filters.direction == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+            <input type="date" name="date_from" class="form-control" value="{{ filters.date_from }}" style="min-width:140px;">
+            <input type="date" name="date_to" class="form-control" value="{{ filters.date_to }}" style="min-width:140px;">
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search"></i> Filter</button>
+            <a href="{% url 'call_log' %}" class="btn btn-secondary btn-sm"><i class="fas fa-times"></i></a>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Direction</th>
+                    <th>Caller ID</th>
+                    <th>Caller Name</th>
+                    <th>Destination</th>
+                    <th>Status</th>
+                    <th>Duration</th>
+                    <th>Answered By</th>
+                    <th>Date/Time</th>
+                    <th>Ticket</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for call in calls %}
+                <tr>
+                    <td>
+                        {% if call.direction == 'INBOUND' %}
+                        <span style="color:var(--success-text);" title="Inbound"><i class="fas fa-phone-arrow-down-left"></i></span>
+                        {% elif call.direction == 'OUTBOUND' %}
+                        <span style="color:var(--info-text);" title="Outbound"><i class="fas fa-phone-arrow-up-right"></i></span>
+                        {% else %}
+                        <span style="color:var(--warning-text);" title="Internal"><i class="fas fa-phone-intercom"></i></span>
+                        {% endif %}
+                    </td>
+                    <td class="mono" style="font-weight:600;">{{ call.caller_number }}</td>
+                    <td style="font-size:12px;">{{ call.caller_name|default:"—" }}</td>
+                    <td class="mono" style="font-size:12px;">{{ call.destination_number }}</td>
+                    <td><span class="badge badge-{{ call.status|lower }}">{{ call.status }}</span></td>
+                    <td class="mono" style="font-size:12px;">{{ call.talk_duration_display }}</td>
+                    <td style="font-size:12px;">{{ call.answered_by.username|default:"—" }}</td>
+                    <td style="font-size:11px;color:var(--text-muted);" title="{{ call.initiated_at }}">
+                        {{ call.initiated_at|date:"Y-m-d H:i" }}
+                    </td>
+                    <td>
+                        {% if call.ticket_created %}
+                        <span class="badge badge-resolved" style="font-size:9px;"><i class="fas fa-check"></i> Yes</span>
+                        {% else %}
+                        <a href="/dashboard/tickets/create/?caller={{ call.caller_number }}&source=VOIP&voip_call={{ call.pk }}"
+                           class="btn btn-secondary btn-sm" style="font-size:10px;padding:3px 7px;">
+                            <i class="fas fa-plus"></i> Create
+                        </a>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'call_detail' call.call_uuid %}" class="btn btn-secondary btn-sm btn-icon"><i class="fas fa-eye"></i></a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="10" style="text-align:center;padding:48px;color:var(--text-muted);">
+                    <i class="fas fa-phone-slash" style="font-size:24px;margin-bottom:8px;display:block;"></i>
+                    No calls found
+                </td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if calls.has_other_pages %}
+    <div class="card-footer flex-between">
+        <span class="text-muted" style="font-size:12px;">Page {{ calls.number }} of {{ calls.paginator.num_pages }}</span>
+        <div style="display:flex;gap:4px;">
+            {% if calls.has_previous %}<a href="?page={{ calls.previous_page_number }}" class="btn btn-secondary btn-sm"><i class="fas fa-chevron-left"></i></a>{% endif %}
+            {% if calls.has_next %}<a href="?page={{ calls.next_page_number }}" class="btn btn-secondary btn-sm"><i class="fas fa-chevron-right"></i></a>{% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

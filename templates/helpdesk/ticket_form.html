@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block page_title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div style="max-width:860px;">
+    <div class="flex-between mb-6">
+        <div>
+            <h1 style="font-size:20px;">{{ page_title }}</h1>
+            <p class="text-muted" style="font-size:13px;margin-top:4px;">Fill in the details below to {% if ticket %}update{% else %}create{% endif %} the ticket</p>
+        </div>
+        <a href="{% url 'ticket_list' %}" class="btn btn-secondary btn-sm"><i class="fas fa-arrow-left"></i> Back</a>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="grid grid-2 mb-4" style="grid-template-columns:1fr;">
+            <div class="card">
+                <div class="card-header"><h6><i class="fas fa-ticket" style="color:var(--accent-hover);margin-right:6px;"></i>Issue Details</h6></div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label class="form-label">Issue Title *</label>
+                        {{ form.title }}
+                        {% if form.title.errors %}<div style="color:var(--danger-text);font-size:11px;margin-top:4px;">{{ form.title.errors }}</div>{% endif %}
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Description *</label>
+                        {{ form.description }}
+                    </div>
+                    <div class="grid grid-3 gap-3">
+                        <div class="form-group">
+                            <label class="form-label">Category</label>
+                            {{ form.category }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Priority</label>
+                            {{ form.priority }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Status</label>
+                            {{ form.status }}
+                        </div>
+                    </div>
+                    <div class="grid grid-2 gap-3">
+                        <div class="form-group">
+                            <label class="form-label">Source</label>
+                            {{ form.source }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Due Date</label>
+                            {{ form.due_date }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-2 mb-4">
+            <div class="card">
+                <div class="card-header"><h6><i class="fas fa-user" style="color:var(--info-text);margin-right:6px;"></i>Requester Info</h6></div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label class="form-label">Full Name</label>
+                        {{ form.requester_name }}
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        {{ form.requester_email }}
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phone</label>
+                        {{ form.requester_phone }}
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Department</label>
+                        {{ form.requester_department }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><h6><i class="fas fa-users" style="color:var(--success-text);margin-right:6px;"></i>Assignment & Tags</h6></div>
+                <div class="card-body">
+                    {% if form.assigned_to %}
+                    <div class="form-group">
+                        <label class="form-label">Assign To</label>
+                        {{ form.assigned_to }}
+                    </div>
+                    {% elif request.user.is_superuser %}
+                    {% else %}
+                    <p class="text-muted" style="font-size:12px;margin-bottom:14px;">
+                        <i class="fas fa-lock"></i> Only administrators can assign tickets.
+                    </p>
+                    {% endif %}
+                    <div class="form-group">
+                        <label class="form-label">Tags</label>
+                        {{ form.tags }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="display:flex;gap:10px;">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i> {% if ticket %}Save Changes{% else %}Create Ticket{% endif %}
+            </button>
+            <a href="{% if ticket %}{% url 'ticket_detail' ticket.ticket_id %}{% else %}{% url 'ticket_list' %}{% endif %}" class="btn btn-secondary">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

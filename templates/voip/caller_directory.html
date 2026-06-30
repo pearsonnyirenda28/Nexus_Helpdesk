@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}Caller Directory{% endblock %}
+{% block page_title %}Caller Directory{% endblock %}
+{% block breadcrumb %}VoIP / Caller Directory{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-6">
+    <div>
+        <h1>Caller Directory</h1>
+        <p class="text-muted" style="font-size:13px;">Known callers and their call history</p>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body" style="padding:12px;">
+        <form method="get" style="display:flex;gap:10px;">
+            <input type="text" name="search" class="form-control" placeholder="Search by number, name, or company..." value="{{ search }}" style="flex:1;">
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search"></i> Search</button>
+            {% if search %}<a href="{% url 'caller_directory' %}" class="btn btn-secondary btn-sm"><i class="fas fa-times"></i></a>{% endif %}
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Phone Number</th>
+                    <th>Name</th>
+                    <th>Company / Dept</th>
+                    <th>Email</th>
+                    <th>Total Calls</th>
+                    <th>Last Call</th>
+                    <th>Flags</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for caller in callers %}
+                <tr>
+                    <td class="mono" style="font-weight:600;">{{ caller.phone_number }}</td>
+                    <td>{{ caller.name|default:"<span class='text-muted'>Unknown</span>" }}</td>
+                    <td style="font-size:12px;color:var(--text-secondary);">
+                        {{ caller.company|default:"" }}
+                        {% if caller.department %}<span class="text-muted"> / {{ caller.department }}</span>{% endif %}
+                        {% if not caller.company and not caller.department %}<span class="text-muted">—</span>{% endif %}
+                    </td>
+                    <td style="font-size:12px;">{{ caller.email|default:"—" }}</td>
+                    <td class="mono">{{ caller.total_calls }}</td>
+                    <td style="font-size:11px;color:var(--text-muted);">
+                        {% if caller.last_call %}{{ caller.last_call|timesince }} ago{% else %}—{% endif %}
+                    </td>
+                    <td>
+                        {% if caller.is_vip %}
+                        <span class="badge" style="background:rgba(158,106,3,.3);color:var(--warning-text);margin-right:4px;">
+                            <i class="fas fa-star"></i> VIP
+                        </span>
+                        {% endif %}
+                        {% if caller.is_blocked %}
+                        <span class="badge badge-critical"><i class="fas fa-ban"></i> Blocked</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'call_log' %}?search={{ caller.phone_number }}" class="btn btn-secondary btn-sm" title="View Call History">
+                            <i class="fas fa-history"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" style="text-align:center;padding:48px;color:var(--text-muted);">
+                        <i class="fas fa-address-book" style="font-size:28px;margin-bottom:12px;display:block;opacity:.3;"></i>
+                        No callers found{% if search %} matching "{{ search }}"{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if callers.has_other_pages %}
+    <div class="card-footer flex-between">
+        <span class="text-muted" style="font-size:12px;">Page {{ callers.number }} of {{ callers.paginator.num_pages }}</span>
+        <div style="display:flex;gap:4px;">
+            {% if callers.has_previous %}<a href="?page={{ callers.previous_page_number }}&search={{ search }}" class="btn btn-secondary btn-sm"><i class="fas fa-chevron-left"></i></a>{% endif %}
+            {% if callers.has_next %}<a href="?page={{ callers.next_page_number }}&search={{ search }}" class="btn btn-secondary btn-sm"><i class="fas fa-chevron-right"></i></a>{% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,197 @@
+{% extends 'base.html' %}
+{% block title %}Reports{% endblock %}
+{% block page_title %}Reports & Analytics{% endblock %}
+{% block breadcrumb %}Analytics / Reports{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-6">
+    <div>
+        <h1>Reports</h1>
+        <p class="text-muted" style="font-size:13px;">{{ period_label }}</p>
+    </div>
+    <form method="get" style="display:flex;gap:8px;align-items:center;">
+        <label class="text-muted" style="font-size:12px;">Period:</label>
+        <select name="period" class="form-select" style="width:160px;" onchange="this.form.submit()">
+            <option value="7" {% if period == '7' %}selected{% endif %}>Last 7 days</option>
+            <option value="30" {% if period == '30' %}selected{% endif %}>Last 30 days</option>
+            <option value="90" {% if period == '90' %}selected{% endif %}>Last 90 days</option>
+            <option value="365" {% if period == '365' %}selected{% endif %}>Last 12 months</option>
+        </select>
+    </form>
+</div>
+
+<!-- Summary KPIs -->
+<div class="grid grid-4 mb-6">
+    <div class="stat-card">
+        <div class="stat-label">Tickets Created</div>
+        <div class="stat-value">{{ total_created }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Tickets Resolved</div>
+        <div class="stat-value text-success">{{ total_resolved }}</div>
+        <div class="stat-trend text-success">
+            {% if total_created %}{{ total_resolved|floatformat:0 }} / {{ total_created }} ({% widthratio total_resolved total_created 100 %}%){% endif %}
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Still Pending</div>
+        <div class="stat-value {% if total_pending %}text-warning{% endif %}">{{ total_pending }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Avg Resolution Time</div>
+        <div class="stat-value mono" style="font-size:22px;">{{ avg_resolution|floatformat:0 }}m</div>
+    </div>
+</div>
+
+<!-- VoIP KPIs -->
+<div class="grid grid-4 mb-6">
+    <div class="stat-card">
+        <div class="stat-label">Total Calls</div>
+        <div class="stat-value">{{ voip_total }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Completed Calls</div>
+        <div class="stat-value text-success">{{ voip_completed }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Missed Calls</div>
+        <div class="stat-value {% if voip_missed %}text-danger{% endif %}">{{ voip_missed }}</div>
+        <div class="stat-trend">
+            {% if voip_total %}{% widthratio voip_missed voip_total 100 %}% miss rate{% endif %}
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Avg Call Duration</div>
+        <div class="stat-value mono" style="font-size:22px;">{{ voip_avg_duration|floatformat:0 }}s</div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="grid grid-2 mb-6">
+    <div class="card">
+        <div class="card-header">
+            <div class="header-icon" style="background:rgba(31,111,235,.2);color:var(--accent-hover);"><i class="fas fa-chart-bar"></i></div>
+            <h6>Tickets by Category</h6>
+        </div>
+        <div class="card-body" style="height:260px;position:relative;">
+            <canvas id="categoryChart"></canvas>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <div class="header-icon" style="background:rgba(35,134,54,.2);color:var(--success-text);"><i class="fas fa-chart-pie"></i></div>
+            <h6>Tickets by Source</h6>
+        </div>
+        <div class="card-body" style="height:260px;position:relative;">
+            <canvas id="sourceChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Agent Performance Table -->
+<div class="card mb-6">
+    <div class="card-header">
+        <div class="header-icon" style="background:rgba(110,118,129,.2);color:var(--text-secondary);"><i class="fas fa-users"></i></div>
+        <h6>Agent Performance — {{ period_label }}</h6>
+    </div>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Agent</th>
+                    <th>Tickets Assigned</th>
+                    <th>Resolved</th>
+                    <th>Resolution Rate</th>
+                    <th>Performance</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for agent in by_agent %}
+                <tr>
+                    <td style="font-weight:500;">{{ agent.assigned_to__username }}</td>
+                    <td class="mono">{{ agent.total }}</td>
+                    <td class="mono text-success">{{ agent.resolved }}</td>
+                    <td>
+                        {% if agent.total %}
+                        {% widthratio agent.resolved agent.total 100 %}%
+                        {% else %}—{% endif %}
+                    </td>
+                    <td style="width:200px;">
+                        <div style="height:6px;background:var(--bg-tertiary);border-radius:3px;">
+                            {% if agent.total %}
+                            <div style="height:100%;background:var(--success-text);border-radius:3px;width:{% widthratio agent.resolved agent.total 100 %}%;"></div>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="text-muted" style="text-align:center;padding:24px;">No agent data for this period</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Priority Breakdown -->
+<div class="card">
+    <div class="card-header">
+        <div class="header-icon" style="background:rgba(218,54,51,.15);color:var(--danger-text);"><i class="fas fa-fire"></i></div>
+        <h6>Priority Breakdown</h6>
+    </div>
+    <div class="card-body">
+        {% for item in by_priority %}
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+            <div style="width:80px;font-size:12px;font-weight:600;">
+                <span class="badge badge-{{ item.priority|lower }}">{{ item.priority }}</span>
+            </div>
+            <div style="flex:1;height:8px;background:var(--bg-tertiary);border-radius:4px;">
+                {% if total_created %}
+                <div style="height:100%;border-radius:4px;width:{% widthratio item.count total_created 100 %}%;
+                    background:{% if item.priority == 'CRITICAL' %}var(--danger-text){% elif item.priority == 'HIGH' %}#f0883e{% elif item.priority == 'MEDIUM' %}var(--warning-text){% else %}var(--success-text){% endif %};"></div>
+                {% endif %}
+            </div>
+            <div class="mono" style="width:40px;text-align:right;font-size:12px;">{{ item.count }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const catData = {{ by_category|safe }};
+new Chart(document.getElementById('categoryChart'), {
+    type: 'bar',
+    data: {
+        labels: catData.map(d => d.category__name || 'Uncategorized'),
+        datasets: [{ data: catData.map(d => d.count), backgroundColor: '#1f6feb', borderRadius: 4 }]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e', font: { size: 10 } } },
+            y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } }
+        }
+    }
+});
+
+const srcData = {{ by_source|safe }};
+const srcColors = { EMAIL:'#58a6ff', PHONE:'#3fb950', WALK_IN:'#d29922', WEB:'#bc8cff', VOIP:'#79c0ff' };
+new Chart(document.getElementById('sourceChart'), {
+    type: 'doughnut',
+    data: {
+        labels: srcData.map(d => d.source),
+        datasets: [{ data: srcData.map(d => d.count), backgroundColor: srcData.map(d => srcColors[d.source] || '#6e7681'), borderWidth: 0 }]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false, cutout: '60%',
+        plugins: { legend: { labels: { color: '#8b949e', font: { size: 11 } } } }
+    }
+});
+</script>
+{% endblock %}

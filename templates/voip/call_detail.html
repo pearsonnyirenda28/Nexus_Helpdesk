@@ -1,0 +1,196 @@
+{% extends 'base.html' %}
+{% block title %}Call {{ call.call_uuid|truncatechars:12 }}{% endblock %}
+{% block page_title %}Call Detail{% endblock %}
+{% block breadcrumb %}VoIP / Call Log / {{ call.caller_number }}{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-6">
+    <div style="display:flex;align-items:center;gap:12px;">
+        <a href="{% url 'call_log' %}" class="btn btn-secondary btn-sm btn-icon"><i class="fas fa-arrow-left"></i></a>
+        <div>
+            <h1 style="font-size:18px;">Call from <span class="mono">{{ call.caller_number }}</span></h1>
+            <div style="display:flex;gap:8px;margin-top:6px;">
+                <span class="badge badge-{{ call.status|lower }}">{{ call.status }}</span>
+                <span class="badge" style="background:rgba(110,118,129,.2);color:var(--text-secondary);">{{ call.get_direction_display }}</span>
+            </div>
+        </div>
+    </div>
+    {% if call.is_active %}
+    <form method="post" style="display:inline;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="end_call">
+        <button class="btn btn-danger btn-sm"><i class="fas fa-phone-slash"></i> End Call</button>
+    </form>
+    {% endif %}
+</div>
+
+<div class="grid" style="grid-template-columns:1fr 300px;gap:20px;">
+    <!-- Main -->
+    <div>
+        <!-- Call Stats -->
+        <div class="grid grid-3 mb-4">
+            <div class="stat-card">
+                <div class="stat-label">Talk Duration</div>
+                <div class="stat-value mono" style="font-size:24px;">{{ call.talk_duration_display }}</div>
+                <div class="stat-trend text-muted">{{ call.talk_duration_minutes }}m total</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Ring Time</div>
+                <div class="stat-value mono" style="font-size:24px;">{{ call.ring_duration_seconds }}s</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Hold Time</div>
+                <div class="stat-value mono" style="font-size:24px;">{{ call.hold_duration_seconds }}s</div>
+            </div>
+        </div>
+
+        <!-- Call Timeline -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="header-icon" style="background:rgba(31,111,235,.2);color:var(--accent-hover);"><i class="fas fa-timeline"></i></div>
+                <h6>Call Timeline</h6>
+            </div>
+            <div class="card-body">
+                <div style="position:relative;padding-left:24px;">
+                    <div style="position:absolute;left:8px;top:0;bottom:0;width:2px;background:var(--border);"></div>
+
+                    <div style="position:relative;margin-bottom:20px;">
+                        <div style="position:absolute;left:-20px;top:4px;width:12px;height:12px;background:var(--accent);border-radius:50%;border:2px solid var(--bg-card);"></div>
+                        <div style="font-size:12px;font-weight:600;color:var(--text-primary);">Call Initiated</div>
+                        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">{{ call.initiated_at|date:"Y-m-d H:i:s" }}</div>
+                        <div style="font-size:11px;color:var(--text-secondary);">{{ call.caller_number }} → {{ call.destination_number }}</div>
+                    </div>
+
+                    {% if call.answered_at %}
+                    <div style="position:relative;margin-bottom:20px;">
+                        <div style="position:absolute;left:-20px;top:4px;width:12px;height:12px;background:var(--success-text);border-radius:50%;border:2px solid var(--bg-card);"></div>
+                        <div style="font-size:12px;font-weight:600;color:var(--text-primary);">Call Answered</div>
+                        <div style="font-size:11px;color:var(--text-muted);">{{ call.answered_at|date:"Y-m-d H:i:s" }}</div>
+                        {% if call.answered_by %}<div style="font-size:11px;color:var(--text-secondary);">by {{ call.answered_by.get_full_name|default:call.answered_by.username }}</div>{% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% for event in events %}
+                    <div style="position:relative;margin-bottom:20px;">
+                        <div style="position:absolute;left:-20px;top:4px;width:12px;height:12px;background:var(--warning-text);border-radius:50%;border:2px solid var(--bg-card);"></div>
+                        <div style="font-size:12px;font-weight:600;color:var(--text-primary);">{{ event.get_event_type_display }}</div>
+                        <div style="font-size:11px;color:var(--text-muted);">{{ event.timestamp|date:"Y-m-d H:i:s" }}</div>
+                        {% if event.description %}<div style="font-size:11px;color:var(--text-secondary);">{{ event.description }}</div>{% endif %}
+                    </div>
+                    {% endfor %}
+
+                    {% if call.ended_at %}
+                    <div style="position:relative;">
+                        <div style="position:absolute;left:-20px;top:4px;width:12px;height:12px;background:var(--text-muted);border-radius:50%;border:2px solid var(--bg-card);"></div>
+                        <div style="font-size:12px;font-weight:600;color:var(--text-primary);">Call Ended</div>
+                        <div style="font-size:11px;color:var(--text-muted);">{{ call.ended_at|date:"Y-m-d H:i:s" }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="header-icon" style="background:rgba(158,106,3,.2);color:var(--warning-text);"><i class="fas fa-note-sticky"></i></div>
+                <h6>Call Notes</h6>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update_notes">
+                    <textarea name="notes" class="form-control" rows="4" placeholder="Resolution notes, issue summary, follow-up actions...">{{ call.notes }}</textarea>
+                    <button type="submit" class="btn btn-primary btn-sm" style="margin-top:10px;"><i class="fas fa-save"></i> Save Notes</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Linked Tickets -->
+        <div class="card">
+            <div class="card-header">
+                <div class="header-icon" style="background:rgba(13,65,157,.2);color:var(--info-text);"><i class="fas fa-ticket"></i></div>
+                <h6>Linked Tickets ({{ linked_tickets.count }})</h6>
+                {% if not call.ticket_created %}
+                <form method="post" style="margin-left:auto;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="create_ticket">
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> Create Ticket</button>
+                </form>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% for ticket in linked_tickets %}
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--bg-tertiary);border-radius:6px;margin-bottom:8px;">
+                    <div>
+                        <a href="{% url 'ticket_detail' ticket.ticket_id %}" class="mono" style="font-weight:600;">{{ ticket.ticket_id }}</a>
+                        <span style="font-size:12px;color:var(--text-secondary);margin-left:8px;">{{ ticket.title|truncatechars:40 }}</span>
+                    </div>
+                    <span class="badge badge-{{ ticket.status|lower }}">{{ ticket.get_status_display }}</span>
+                </div>
+                {% empty %}
+                <p class="text-muted" style="font-size:13px;">No tickets linked to this call yet.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div>
+        <div class="card mb-4">
+            <div class="card-header"><h6><i class="fas fa-phone" style="color:var(--success-text);margin-right:6px;"></i>Call Info</h6></div>
+            <div class="card-body" style="font-size:13px;display:grid;gap:12px;">
+                <div>
+                    <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">UUID</div>
+                    <div class="mono" style="font-size:11px;word-break:break-all;">{{ call.call_uuid }}</div>
+                </div>
+                <div>
+                    <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Caller Number</div>
+                    <div class="mono" style="font-weight:700;font-size:16px;">{{ call.caller_number }}</div>
+                </div>
+                {% if call.caller_name %}
+                <div>
+                    <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Caller Name (ID)</div>
+                    <div>{{ call.caller_name }}</div>
+                </div>
+                {% endif %}
+                <div>
+                    <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Destination</div>
+                    <div class="mono">{{ call.destination_number }}</div>
+                </div>
+                {% if call.destination_extension %}
+                <div>
+                    <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Extension</div>
+                    <div>{{ call.destination_extension.extension_number }} — {{ call.destination_extension.display_name }}</div>
+                </div>
+                {% endif %}
+                <div>
+                    <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Direction</div>
+                    <div>{{ call.get_direction_display }}</div>
+                </div>
+                {% if call.transferred_to %}
+                <div>
+                    <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Transferred To</div>
+                    <div class="mono">{{ call.transferred_to }}</div>
+                </div>
+                {% endif %}
+                <div>
+                    <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Recording</div>
+                    <div>{% if call.is_recorded %}<span class="text-success"><i class="fas fa-circle-dot"></i> Recorded</span>{% else %}<span class="text-muted">Not recorded</span>{% endif %}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Caller Profile Quick Look -->
+        <div class="card">
+            <div class="card-header"><h6><i class="fas fa-address-card" style="color:var(--info-text);margin-right:6px;"></i>Caller Profile</h6></div>
+            <div class="card-body" style="font-size:13px;">
+                <a href="{% url 'caller_directory' %}?search={{ call.caller_number }}" class="btn btn-secondary btn-sm" style="width:100%;justify-content:center;margin-bottom:10px;">
+                    <i class="fas fa-search"></i> View Full Profile
+                </a>
+                <div class="text-muted" style="font-size:11px;">Look up call history & profile for this number in the caller directory.</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

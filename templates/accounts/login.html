@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexusDesk — Sign In</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary:#0d1117;--bg-secondary:#161b22;--bg-tertiary:#21262d;
+            --border:#30363d;--text-primary:#e6edf3;--text-secondary:#8b949e;
+            --text-muted:#6e7681;--accent:#1f6feb;--accent-hover:#388bfd;
+            --danger-text:#f85149;--success-text:#3fb950;
+        }
+        *{box-sizing:border-box;margin:0;padding:0;}
+        body{font-family:'Inter',sans-serif;background:var(--bg-primary);color:var(--text-primary);
+            min-height:100vh;display:flex;align-items:center;justify-content:center;
+            background-image:radial-gradient(ellipse at 20% 50%,rgba(31,111,235,.08) 0%,transparent 60%),
+                             radial-gradient(ellipse at 80% 20%,rgba(56,139,253,.05) 0%,transparent 50%);}
+        .login-wrap{width:100%;max-width:400px;padding:24px;}
+        .brand{text-align:center;margin-bottom:32px;}
+        .brand-icon{width:56px;height:56px;background:linear-gradient(135deg,#1f6feb,#388bfd);
+            border-radius:14px;display:flex;align-items:center;justify-content:center;
+            font-size:24px;color:#fff;margin:0 auto 14px;box-shadow:0 8px 24px rgba(31,111,235,.3);}
+        .brand-name{font-size:24px;font-weight:700;}
+        .brand-tagline{font-size:12px;color:var(--text-muted);letter-spacing:.5px;margin-top:4px;}
+        .card{background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:32px;}
+        .card-title{font-size:16px;font-weight:600;margin-bottom:4px;}
+        .card-sub{font-size:12px;color:var(--text-muted);margin-bottom:24px;}
+        .form-group{margin-bottom:16px;}
+        .form-label{display:block;font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px;}
+        .input-wrap{position:relative;}
+        .input-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);
+            color:var(--text-muted);font-size:13px;pointer-events:none;}
+        .form-control{width:100%;padding:10px 40px 10px 36px;background:var(--bg-tertiary);
+            border:1px solid var(--border);border-radius:6px;color:var(--text-primary);
+            font-size:13px;font-family:'Inter',sans-serif;transition:border-color .15s;}
+        .form-control:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(31,111,235,.15);}
+        .form-control::placeholder{color:var(--text-muted);}
+        /* show/hide password toggle */
+        .toggle-pw{position:absolute;right:12px;top:50%;transform:translateY(-50%);
+            background:none;border:none;color:var(--text-muted);cursor:pointer;
+            font-size:13px;padding:2px 4px;transition:color .15s;}
+        .toggle-pw:hover{color:var(--text-primary);}
+        /* remember me + forgot row */
+        .row-inline{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
+        .checkbox-label{display:flex;align-items:center;gap:8px;font-size:13px;
+            color:var(--text-secondary);cursor:pointer;user-select:none;}
+        .checkbox-label input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;}
+        .btn{width:100%;padding:11px;background:var(--accent);color:#fff;border:none;
+            border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;
+            transition:background .15s;font-family:'Inter',sans-serif;
+            display:flex;align-items:center;justify-content:center;gap:8px;}
+        .btn:hover{background:var(--accent-hover);}
+        .alert{padding:10px 14px;border-radius:6px;font-size:13px;margin-bottom:16px;
+            background:rgba(218,54,51,.12);border:1px solid rgba(248,81,73,.3);
+            color:var(--danger-text);display:flex;align-items:center;gap:8px;}
+        .default-creds{background:var(--bg-tertiary);border:1px solid var(--border);
+            border-radius:6px;padding:12px 14px;margin-bottom:20px;}
+        .default-creds p{font-size:11px;color:var(--text-muted);margin-bottom:8px;
+            display:flex;align-items:center;gap:6px;}
+        .cred-row{display:flex;justify-content:space-between;align-items:center;
+            font-size:12px;margin-bottom:4px;}
+        .cred-key{color:var(--text-secondary);}
+        .cred-val{font-family:'JetBrains Mono',monospace;color:var(--success-text);
+            background:rgba(63,185,80,.08);padding:2px 8px;border-radius:4px;}
+        .footer-note{text-align:center;font-size:11px;color:var(--text-muted);margin-top:20px;}
+        .divider{height:1px;background:var(--border);margin:20px 0;}
+    </style>
+</head>
+<body>
+<div class="login-wrap">
+    <div class="brand">
+        <div class="brand-icon"><i class="fas fa-headset"></i></div>
+        <div class="brand-name">NexusDesk</div>
+        <div class="brand-tagline">IT HELP DESK &amp; VOIP TRACKING</div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Sign in to your account</div>
+        <div class="card-sub">Enter your credentials to access the dashboard</div>
+
+        {% if form.non_field_errors %}
+        <div class="alert"><i class="fas fa-exclamation-circle"></i> Invalid username or password. Please try again.</div>
+        {% endif %}
+        {% for message in messages %}
+        <div class="alert"><i class="fas fa-exclamation-circle"></i> {{ message }}</div>
+        {% endfor %}
+
+        <div class="default-creds">
+            <p><i class="fas fa-circle-info"></i> Default admin credentials</p>
+            <div class="cred-row"><span class="cred-key">Username</span><span class="cred-val">admin</span></div>
+            <div class="cred-row"><span class="cred-key">Password</span><span class="cred-val">admin123!</span></div>
+        </div>
+
+        <form method="post" id="loginForm">
+            {% csrf_token %}
+
+            <div class="form-group">
+                <label class="form-label" for="id_username">Username</label>
+                <div class="input-wrap">
+                    <i class="fas fa-user input-icon"></i>
+                    <input type="text" name="username" id="id_username"
+                           class="form-control" placeholder="Enter your username"
+                           autofocus autocomplete="username" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="id_password">Password</label>
+                <div class="input-wrap">
+                    <i class="fas fa-lock input-icon"></i>
+                    <input type="password" name="password" id="id_password"
+                           class="form-control" placeholder="Enter your password"
+                           autocomplete="current-password" required>
+                    <button type="button" class="toggle-pw" id="togglePw"
+                            title="Show / hide password" tabindex="-1">
+                        <i class="fas fa-eye" id="togglePwIcon"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="row-inline">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="remember_me" id="rememberMe">
+                    Remember me for 30 days
+                </label>
+            </div>
+
+            <button type="submit" class="btn">
+                <i class="fas fa-sign-in-alt"></i> Sign In
+            </button>
+        </form>
+    </div>
+
+    <div class="footer-note">
+        NexusDesk &copy; {% now "Y" %} &bull; IT Department Help Desk &bull; v1.0
+    </div>
+</div>
+
+<script>
+// Show / hide password
+document.getElementById('togglePw').addEventListener('click', function () {
+    const pw = document.getElementById('id_password');
+    const icon = document.getElementById('togglePwIcon');
+    if (pw.type === 'password') {
+        pw.type = 'text';
+        icon.className = 'fas fa-eye-slash';
+        this.title = 'Hide password';
+    } else {
+        pw.type = 'password';
+        icon.className = 'fas fa-eye';
+        this.title = 'Show password';
+    }
+});
+</script>
+</body>
+</html>

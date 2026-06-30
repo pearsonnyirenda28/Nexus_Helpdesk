@@ -1,0 +1,240 @@
+{% extends 'base.html' %}
+{% block title %}{{ target.username }}{% endblock %}
+{% block page_title %}Manage User{% endblock %}
+{% block breadcrumb %}Account / Users / {{ target.username }}{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-6">
+    <div style="display:flex;align-items:center;gap:12px;">
+        <a href="{% url 'user_list' %}" class="btn btn-secondary btn-sm btn-icon"><i class="fas fa-arrow-left"></i></a>
+        <div>
+            <h1 style="font-size:18px;">{{ target.get_full_name|default:target.username }}</h1>
+            <div style="display:flex;gap:6px;margin-top:6px;">
+                {% if target.is_superuser %}<span class="badge badge-critical">Superuser</span>
+                {% elif target.is_staff %}<span class="badge badge-in_progress">IT Staff</span>
+                {% else %}<span class="badge badge-closed">User</span>{% endif %}
+
+                {% if target.is_active %}
+                <span class="badge badge-resolved"><i class="fas fa-circle-check"></i> Active</span>
+                {% else %}
+                <span class="badge badge-critical"><i class="fas fa-ban"></i> Deactivated</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="grid" style="grid-template-columns:1fr 340px;gap:20px;align-items:start;">
+
+    <!-- ── MAIN ─────────────────────────────────── -->
+    <div>
+        <!-- Profile Info -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="header-icon" style="background:rgba(31,111,235,.2);color:var(--accent-hover);">
+                    <i class="fas fa-id-card"></i>
+                </div>
+                <h6>Profile Information</h6>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update_profile">
+                    <div class="grid grid-2" style="gap:14px;">
+                        <div class="form-group">
+                            <label class="form-label">First Name</label>
+                            <input type="text" name="first_name" class="form-control" value="{{ target.first_name }}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Last Name</label>
+                            <input type="text" name="last_name" class="form-control" value="{{ target.last_name }}">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" class="form-control" value="{{ target.email }}">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save"></i> Save Changes</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Reset Password -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="header-icon" style="background:rgba(158,106,3,.2);color:var(--warning-text);">
+                    <i class="fas fa-key"></i>
+                </div>
+                <h6>Reset Password</h6>
+            </div>
+            <div class="card-body">
+                {% if request.user.is_superuser or target == request.user %}
+                <form method="post" id="resetPwForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="reset_password">
+                    <div class="grid grid-2" style="gap:14px;">
+                        <div class="form-group">
+                            <label class="form-label">New Password</label>
+                            <div style="position:relative;">
+                                <input type="password" name="new_password" id="newPw" class="form-control" minlength="8" required>
+                                <button type="button" onclick="togglePw('newPw', this)"
+                                    style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
+                                           background:none;border:none;color:var(--text-muted);cursor:pointer;">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Confirm Password</label>
+                            <div style="position:relative;">
+                                <input type="password" name="confirm_password" id="confirmPw" class="form-control" minlength="8" required>
+                                <button type="button" onclick="togglePw('confirmPw', this)"
+                                    style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
+                                           background:none;border:none;color:var(--text-muted);cursor:pointer;">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-muted" style="font-size:11px;margin-bottom:12px;">
+                        Minimum 8 characters. {% if target == request.user %}You'll stay logged in after this change.{% else %}{{ target.username }} will need to use this new password on next login.{% endif %}
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm"
+                            onclick="return confirm('Reset password for {{ target.username }}?')">
+                        <i class="fas fa-key"></i> Reset Password
+                    </button>
+                </form>
+                {% else %}
+                <p class="text-muted" style="font-size:13px;">
+                    <i class="fas fa-lock"></i> Only superusers can reset other users' passwords.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Account Activity -->
+        <div class="card">
+            <div class="card-header">
+                <div class="header-icon" style="background:rgba(218,54,51,.12);color:var(--danger-text);">
+                    <i class="fas fa-shield-halved"></i>
+                </div>
+                <h6>Recent Account Activity</h6>
+            </div>
+            <div style="max-height:260px;overflow-y:auto;">
+                {% for log in audit_logs %}
+                <div style="padding:9px 16px;border-bottom:1px solid var(--border-subtle);display:flex;gap:10px;">
+                    <div style="width:6px;height:6px;background:var(--accent);border-radius:50%;margin-top:5px;flex-shrink:0;"></div>
+                    <div>
+                        <div style="font-size:12px;color:var(--text-secondary);">
+                            <strong style="color:var(--text-primary);">{{ log.user.username|default:"System" }}</strong>
+                            — {{ log.notes|default:log.get_action_display }}
+                        </div>
+                        <div class="text-muted" style="font-size:10px;margin-top:2px;">{{ log.timestamp|date:"Y-m-d H:i:s" }}</div>
+                    </div>
+                </div>
+                {% empty %}
+                <div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">No activity recorded</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ── SIDEBAR ─────────────────────────────── -->
+    <div>
+        <!-- Stats -->
+        <div class="card mb-4">
+            <div class="card-header"><h6><i class="fas fa-chart-simple" style="color:var(--accent-hover);margin-right:6px;"></i>Activity Stats</h6></div>
+            <div class="card-body" style="display:grid;gap:12px;font-size:13px;">
+                <div class="flex-between">
+                    <span class="text-muted">Tickets Assigned</span>
+                    <span class="mono" style="font-weight:600;">{{ tickets_total }}</span>
+                </div>
+                <div class="flex-between">
+                    <span class="text-muted">Resolved</span>
+                    <span class="mono text-success" style="font-weight:600;">{{ tickets_resolved }}</span>
+                </div>
+                <div class="flex-between">
+                    <span class="text-muted">Currently Open</span>
+                    <span class="mono text-warning" style="font-weight:600;">{{ tickets_open }}</span>
+                </div>
+                <div class="flex-between">
+                    <span class="text-muted">Calls Handled</span>
+                    <span class="mono" style="font-weight:600;">{{ calls_count }}</span>
+                </div>
+                <div class="flex-between">
+                    <span class="text-muted">Date Joined</span>
+                    <span style="font-size:11px;">{{ target.date_joined|date:"Y-m-d" }}</span>
+                </div>
+                <div class="flex-between">
+                    <span class="text-muted">Last Login</span>
+                    <span style="font-size:11px;">{{ target.last_login|date:"Y-m-d H:i"|default:"Never" }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Account Status -->
+        <div class="card mb-4">
+            <div class="card-header"><h6><i class="fas fa-toggle-on" style="color:var(--success-text);margin-right:6px;"></i>Account Status</h6></div>
+            <div class="card-body">
+                {% if target != request.user %}
+                <form method="post" style="margin-bottom:10px;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="toggle_active">
+                    {% if target.is_active %}
+                    <button type="submit" class="btn btn-danger btn-sm" style="width:100%;justify-content:center;"
+                            onclick="return confirm('Deactivate {{ target.username }}? They will not be able to log in.')">
+                        <i class="fas fa-ban"></i> Deactivate Account
+                    </button>
+                    {% else %}
+                    <button type="submit" class="btn btn-success btn-sm" style="width:100%;justify-content:center;">
+                        <i class="fas fa-circle-check"></i> Reactivate Account
+                    </button>
+                    {% endif %}
+                </form>
+                {% else %}
+                <p class="text-muted" style="font-size:12px;margin-bottom:10px;">
+                    <i class="fas fa-info-circle"></i> You cannot deactivate your own account.
+                </p>
+                {% endif %}
+
+                {% if request.user.is_superuser and target != request.user %}
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="toggle_staff">
+                    {% if target.is_staff %}
+                    <button type="submit" class="btn btn-secondary btn-sm" style="width:100%;justify-content:center;"
+                            onclick="return confirm('Remove IT Staff role from {{ target.username }}?')">
+                        <i class="fas fa-user-minus"></i> Remove Staff Role
+                    </button>
+                    {% else %}
+                    <button type="submit" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;">
+                        <i class="fas fa-user-shield"></i> Grant Staff Role
+                    </button>
+                    {% endif %}
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <div style="background:rgba(31,111,235,.08);border:1px solid rgba(31,111,235,.15);
+                    border-radius:8px;padding:12px 14px;font-size:11px;color:var(--text-muted);line-height:1.6;">
+            <i class="fas fa-circle-info" style="color:var(--info-text);"></i>
+            Deactivating preserves all ticket history and audit logs. Use this instead of deleting accounts.
+        </div>
+    </div>
+</div>
+
+<script>
+function togglePw(id, btn) {
+    const input = document.getElementById(id);
+    const icon = btn.querySelector('i');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fas fa-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'fas fa-eye';
+    }
+}
+</script>
+{% endblock %}

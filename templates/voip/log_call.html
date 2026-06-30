@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% block title %}Log a Call{% endblock %}
+{% block page_title %}Log VoIP Call{% endblock %}
+{% block breadcrumb %}VoIP / Log Call{% endblock %}
+
+{% block content %}
+<div style="max-width:680px;">
+    <div class="flex-between mb-6">
+        <div>
+            <h1>Log a VoIP Call</h1>
+            <p class="text-muted" style="font-size:13px;margin-top:4px;">Manually record a call for tracking and ticket creation</p>
+        </div>
+        <a href="{% url 'call_log' %}" class="btn btn-secondary btn-sm"><i class="fas fa-arrow-left"></i> Back</a>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="header-icon" style="background:rgba(35,134,54,.2);color:var(--success-text);"><i class="fas fa-phone-plus"></i></div>
+            <h6>Call Details</h6>
+        </div>
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                <div class="grid grid-2" style="gap:16px;">
+                    <div class="form-group">
+                        <label class="form-label">Caller Number (Caller ID) *</label>
+                        <input type="text" name="caller_number" class="form-control mono" placeholder="+263771234567" required>
+                        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Enter the full phone number including country code</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Caller Name (if known)</label>
+                        <input type="text" name="caller_name" class="form-control" placeholder="John Smith">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Destination / Extension</label>
+                        <input type="text" name="destination_number" class="form-control mono" placeholder="4001 or HELPDESK">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Direction</label>
+                        <select name="direction" class="form-select">
+                            {% for val, label in direction_choices %}
+                            <option value="{{ val }}" {% if val == 'INBOUND' %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Call Status</label>
+                        <select name="status" class="form-select">
+                            {% for val, label in status_choices %}
+                            <option value="{{ val }}" {% if val == 'COMPLETED' %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Talk Duration (minutes)</label>
+                        <input type="number" name="talk_minutes" class="form-control mono" placeholder="5.5" step="0.5" min="0" value="0">
+                        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Decimal values allowed (e.g. 2.5 = 2m 30s)</div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notes / Issue Summary</label>
+                    <textarea name="notes" class="form-control" rows="4" placeholder="What was the call about? Any action taken?"></textarea>
+                </div>
+
+                <div style="background:var(--bg-tertiary);border-radius:6px;padding:14px;margin-bottom:20px;border:1px solid var(--border);">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:500;">
+                        <input type="checkbox" name="create_ticket" style="accent-color:var(--accent);width:16px;height:16px;">
+                        <span>Also create a Help Desk ticket from this call</span>
+                    </label>
+                    <p style="font-size:11px;color:var(--text-muted);margin-top:6px;margin-left:24px;">You'll be redirected to the ticket creation form pre-filled with call details.</p>
+                </div>
+
+                <div style="display:flex;gap:10px;">
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Call Log</button>
+                    <a href="{% url 'call_log' %}" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

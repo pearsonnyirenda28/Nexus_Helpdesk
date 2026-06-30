@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% block title %}Manage Users{% endblock %}
+{% block page_title %}Manage Users{% endblock %}
+{% block breadcrumb %}Account / Users{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-6">
+    <div>
+        <h1>Manage Users</h1>
+        <p class="text-muted" style="font-size:13px;">{{ users.count }} user{{ users.count|pluralize }} in the system</p>
+    </div>
+    {% if request.user.is_superuser %}
+    <a href="{% url 'user_create' %}" class="btn btn-primary btn-sm">
+        <i class="fas fa-user-plus"></i> Add User
+    </a>
+    {% endif %}
+</div>
+
+<div class="card mb-4">
+    <div class="card-body" style="padding:12px;">
+        <form method="get" style="display:flex;gap:10px;">
+            <input type="text" name="search" class="form-control"
+                   placeholder="Search username, name, email..." value="{{ search }}" style="flex:1;">
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search"></i> Search</button>
+            {% if search %}<a href="{% url 'user_list' %}" class="btn btn-secondary btn-sm"><i class="fas fa-times"></i></a>{% endif %}
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Open Tickets</th>
+                    <th>Last Login</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr {% if not u.is_active %}style="opacity:.55;"{% endif %}>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <div class="user-avatar" style="width:30px;height:30px;font-size:11px;
+                                {% if u.is_superuser %}background:linear-gradient(135deg,#da3633,#f85149);
+                                {% elif u.is_staff %}background:linear-gradient(135deg,#1f6feb,#388bfd);
+                                {% endif %}">
+                                {{ u.username|first|upper }}
+                            </div>
+                            <div>
+                                <div style="font-weight:600;font-size:13px;">
+                                    {{ u.get_full_name|default:u.username }}
+                                </div>
+                                <div class="text-muted mono" style="font-size:10px;">@{{ u.username }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="font-size:12px;">{{ u.email|default:"—" }}</td>
+                    <td>
+                        {% if u.is_superuser %}
+                        <span class="badge badge-critical">Superuser</span>
+                        {% elif u.is_staff %}
+                        <span class="badge badge-in_progress">IT Staff</span>
+                        {% else %}
+                        <span class="badge badge-closed">User</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if u.is_active %}
+                        <span class="badge badge-resolved"><i class="fas fa-circle-check"></i> Active</span>
+                        {% else %}
+                        <span class="badge badge-critical"><i class="fas fa-ban"></i> Deactivated</span>
+                        {% endif %}
+                    </td>
+                    <td class="mono">{{ u.open_tickets }}</td>
+                    <td style="font-size:11px;color:var(--text-muted);">
+                        {% if u.last_login %}{{ u.last_login|timesince }} ago{% else %}Never{% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'user_detail' u.pk %}" class="btn btn-secondary btn-sm btn-icon" title="Manage">
+                            <i class="fas fa-gear"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">
+                    No users found{% if search %} matching "{{ search }}"{% endif %}
+                </td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

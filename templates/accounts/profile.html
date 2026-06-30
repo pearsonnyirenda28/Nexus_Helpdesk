@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% block title %}My Profile{% endblock %}
+{% block page_title %}My Profile{% endblock %}
+{% block breadcrumb %}Account / Profile{% endblock %}
+
+{% block content %}
+<div style="max-width:640px;">
+
+    <!-- Account Card -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <div class="header-icon" style="background:linear-gradient(135deg,#6e40c9,#9b72ea);color:#fff;">
+                <i class="fas fa-user"></i>
+            </div>
+            <h6>Account Information</h6>
+        </div>
+        <div class="card-body">
+            <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
+                <div style="width:60px;height:60px;background:linear-gradient(135deg,#6e40c9,#9b72ea);
+                    border-radius:50%;display:flex;align-items:center;justify-content:center;
+                    font-size:22px;font-weight:700;color:#fff;">
+                    {{ profile_user.username|first|upper }}
+                </div>
+                <div>
+                    <div style="font-size:17px;font-weight:700;">
+                        {{ profile_user.get_full_name|default:profile_user.username }}
+                    </div>
+                    <div class="text-muted" style="font-size:12px;">@{{ profile_user.username }}</div>
+                    <div style="margin-top:6px;">
+                        {% if profile_user.is_superuser %}<span class="badge badge-critical">Superuser</span>
+                        {% elif profile_user.is_staff %}<span class="badge badge-in_progress">IT Staff</span>
+                        {% else %}<span class="badge badge-closed">User</span>{% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-2" style="gap:14px;font-size:13px;">
+                <div>
+                    <div class="text-muted" style="font-size:10px;text-transform:uppercase;margin-bottom:3px;">Email</div>
+                    <div>{{ profile_user.email|default:"Not set" }}</div>
+                </div>
+                <div>
+                    <div class="text-muted" style="font-size:10px;text-transform:uppercase;margin-bottom:3px;">Date Joined</div>
+                    <div>{{ profile_user.date_joined|date:"Y-m-d" }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="card-footer">
+            <a href="{% url 'user_detail' profile_user.pk %}" class="btn btn-secondary btn-sm">
+                <i class="fas fa-edit"></i> Edit Profile Details
+            </a>
+        </div>
+    </div>
+
+    <!-- Change Password -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <div class="header-icon" style="background:rgba(158,106,3,.2);color:var(--warning-text);">
+                <i class="fas fa-key"></i>
+            </div>
+            <h6>Change Password</h6>
+        </div>
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="change_password">
+                <div class="form-group">
+                    <label class="form-label">New Password</label>
+                    <input type="password" name="new_password1" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Confirm New Password</label>
+                    <input type="password" name="new_password2" class="form-control" required>
+                </div>
+                {% if form.errors %}
+                <div class="alert alert-error">
+                    {% for field in form %}{% for error in field.errors %}{{ error }}<br>{% endfor %}{% endfor %}
+                </div>
+                {% endif %}
+                <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save"></i> Update Password</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- My Activity -->
+    <div class="card">
+        <div class="card-header">
+            <div class="header-icon" style="background:rgba(31,111,235,.2);color:var(--accent-hover);">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <h6>My Activity</h6>
+        </div>
+        <div class="card-body grid grid-3" style="gap:16px;">
+            <div style="text-align:center;">
+                <div style="font-size:26px;font-weight:700;font-family:'JetBrains Mono';">{{ tickets_assigned }}</div>
+                <div class="text-muted" style="font-size:11px;">Tickets Assigned</div>
+            </div>
+            <div style="text-align:center;">
+                <div style="font-size:26px;font-weight:700;font-family:'JetBrains Mono';color:var(--success-text);">{{ tickets_resolved }}</div>
+                <div class="text-muted" style="font-size:11px;">Resolved</div>
+            </div>
+            <div style="text-align:center;">
+                <div style="font-size:26px;font-weight:700;font-family:'JetBrains Mono';">{{ calls_count }}</div>
+                <div class="text-muted" style="font-size:11px;">Calls Handled</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

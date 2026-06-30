@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% block title %}Live Call Board{% endblock %}
+{% block page_title %}Live Call Board{% endblock %}
+{% block breadcrumb %}VoIP / Live Board{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-6">
+    <div>
+        <h1>Live Call Board</h1>
+        <p class="text-muted" style="font-size:13px;">Real-time VoIP call status</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <div class="live-indicator"><div class="live-dot"></div> Auto-refreshing</div>
+        <a href="{% url 'log_call' %}" class="btn btn-primary btn-sm"><i class="fas fa-phone-plus"></i> Log Call</a>
+    </div>
+</div>
+
+<!-- Stats row -->
+<div class="grid grid-4 mb-6">
+    <div class="stat-card">
+        <div class="stat-label">Active Now</div>
+        <div class="stat-value text-success" id="stat-active">{{ stats.active }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Completed Today</div>
+        <div class="stat-value">{{ stats.completed_today }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Missed Today</div>
+        <div class="stat-value {% if stats.missed_today %}text-danger{% endif %}">{{ stats.missed_today }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Minutes Today</div>
+        <div class="stat-value mono" style="font-size:22px;">{{ stats.total_minutes_today|floatformat:0 }}m</div>
+    </div>
+</div>
+
+<!-- Live Call Cards -->
+<div id="call-board">
+    {% if active_calls %}
+    <div class="grid grid-3" id="active-call-grid">
+        {% for call in active_calls %}
+        <div class="card" id="call-{{ call.call_uuid }}" style="border-color:{% if call.status == 'ACTIVE' %}rgba(63,185,80,.4){% elif call.status == 'RINGING' %}rgba(210,153,34,.4){% else %}rgba(88,166,255,.4){% endif %};">
+            <div class="card-header" style="background:{% if call.status == 'ACTIVE' %}rgba(35,134,54,.1){% elif call.status == 'RINGING' %}rgba(158,106,3,.1){% else %}rgba(13,65,157,.1){% endif %};">
+                <span class="badge badge-{{ call.status|lower }}">{{ call.status }}</span>
+                <span class="text-muted" style="font-size:11px;margin-left:auto;">{{ call.get_direction_display }}</span>
+            </div>
+            <div class="card-body">
+                <div style="margin-bottom:12px;">
+                    <div style="font-size:18px;font-weight:700;font-family:'JetBrains Mono';">{{ call.caller_number }}</div>
+                    {% if call.caller_name %}<div style="font-size:13px;color:var(--text-secondary);">{{ call.caller_name }}</div>{% endif %}
+                </div>
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">
+                    <i class="fas fa-arrow-right" style="width:14px;"></i> {{ call.destination_number }}
+                    {% if call.destination_extension %} (Ext {{ call.destination_extension.extension_number }}){% endif %}
+                </div>
+                {% if call.answered_by %}
+                <div style="font-size:12px;margin-bottom:8px;">
+                    <i class="fas fa-headset" style="color:var(--success-text);width:14px;"></i>
+                    <span style="color:var(--text-secondary);">
+                        {% if call.answered_by %}{{ call.answered_by.get_full_name|default:call.answered_by.username }}{% else %}—{% endif %}
+                    </span>
+                </div>
+                {% endif %}
+                <div style="font-size:12px;color:var(--text-muted);">
+                    <i class="fas fa-clock" style="width:14px;"></i>
+                    Started {{ call.initiated_at|timesince }} ago
+                </div>
+            </div>
+            <div class="card-footer" style="display:flex;gap:6px;">
+                <a href="{% url 'call_detail' call.call_uuid %}" class="btn btn-secondary btn-sm" style="flex:1;justify-content:center;">
+                    <i class="fas fa-eye"></i> View
+                </a>
+                <a href="/dashboard/tickets/create/?caller={{ call.caller_number }}&source=VOIP" class="btn btn-primary btn-sm" style="flex:1;justify-content:center;">
+                    <i class="fas fa-ticket"></i> Ticket
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card">
+        <div style="padding:64px;text-align:center;color:var(--text-muted);">
+            <i class="fas fa-phone-slash" style="font-size:40px;margin-bottom:16px;display:block;opacity:.3;"></i>
+            <div style="font-size:16px;font-weight:600;margin-bottom:8px;">No Active Calls</div>
+            <div style="font-size:13px;">Call board will update automatically when calls come in.</div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function refreshBoard() {
+    try {
+        const r = await fetch('/voip/api/active/');
+        if (r.ok) {
+            const d = await r.json();
+            document.getElementById('stat-active').textContent = d.count;
+        }
+    } catch(e) {}
+}
+setInterval(refreshBoard, 10000);
+</script>
+{% endblock %}

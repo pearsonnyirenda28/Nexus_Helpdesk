@@ -1,0 +1,10 @@
+*.pyc
+__pycache__/
+*.pyo
+.env
+nexusdesk.db
+staticfiles/
+media/
+*.log
+venv/
+.venv/

@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% block title %}Audit Trail{% endblock %}
+{% block page_title %}Audit Trail{% endblock %}
+{% block breadcrumb %}Analytics / Audit Trail{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-6">
+    <div>
+        <h1>Audit Trail</h1>
+        <p class="text-muted" style="font-size:13px;">Full immutable log of all system actions</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+        <div style="font-size:11px;color:var(--success-text);background:rgba(35,134,54,.12);border:1px solid rgba(63,185,80,.2);padding:4px 10px;border-radius:20px;">
+            <i class="fas fa-shield-halved"></i> Tamper-evident log
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-6">
+    <div class="card-body" style="padding:14px;">
+        <form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+            <input type="text" name="search" class="form-control" placeholder="Search user, object..." value="{{ filters.search }}" style="flex:1;min-width:200px;">
+            <select name="action" class="form-select" style="min-width:160px;">
+                <option value="">All Actions</option>
+                {% for val, label in action_choices %}
+                <option value="{{ val }}" {% if filters.action == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <select name="model" class="form-select" style="min-width:140px;">
+                <option value="">All Models</option>
+                <option value="Ticket" {% if filters.model == 'Ticket' %}selected{% endif %}>Ticket</option>
+                <option value="VoIPCall" {% if filters.model == 'VoIPCall' %}selected{% endif %}>VoIP Call</option>
+                <option value="User" {% if filters.model == 'User' %}selected{% endif %}>User</option>
+            </select>
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search"></i> Filter</button>
+            <a href="{% url 'audit_log' %}" class="btn btn-secondary btn-sm"><i class="fas fa-times"></i> Clear</a>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>Model</th>
+                    <th>Object</th>
+                    <th>Changes</th>
+                    <th>IP Address</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td class="mono" style="font-size:11px;white-space:nowrap;color:var(--text-muted);">
+                        {{ log.timestamp|date:"Y-m-d H:i:s" }}
+                    </td>
+                    <td>
+                        {% if log.user %}
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <div class="user-avatar" style="width:22px;height:22px;font-size:9px;">{{ log.user.username|first|upper }}</div>
+                            <span style="font-size:12px;font-weight:500;">{{ log.user.username }}</span>
+                        </div>
+                        {% else %}<span class="text-muted" style="font-size:12px;">System</span>{% endif %}
+                    </td>
+                    <td>
+                        <span class="badge
+                            {% if log.action == 'CREATE' %}badge-resolved
+                            {% elif log.action == 'DELETE' %}badge-critical
+                            {% elif log.action == 'LOGIN' or log.action == 'LOGOUT' %}badge-in_progress
+                            {% elif log.action == 'STATUS_CHANGE' %}badge-pending
+                            {% else %}badge-closed{% endif %}"
+                            style="font-size:9px;">
+                            {{ log.get_action_display }}
+                        </span>
+                    </td>
+                    <td style="font-size:12px;color:var(--text-secondary);">{{ log.model_name }}</td>
+                    <td>
+                        <span class="mono" style="font-size:11px;">{{ log.object_id }}</span>
+                        {% if log.object_repr %}
+                        <div style="font-size:11px;color:var(--text-muted);">{{ log.object_repr|truncatechars:35 }}</div>
+                        {% endif %}
+                    </td>
+                    <td style="font-size:11px;color:var(--text-muted);">
+                        {% if log.changes %}
+                        <span title="{{ log.changes }}">
+                            <i class="fas fa-pen-to-square" style="color:var(--warning-text);"></i>
+                            {{ log.changes|length }} field{{ log.changes|length|pluralize }}
+                        </span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td class="mono" style="font-size:11px;color:var(--text-muted);">{{ log.ip_address|default:"—" }}</td>
+                    <td style="font-size:11px;color:var(--text-muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                        {{ log.notes|default:"—" }}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" style="text-align:center;padding:48px;color:var(--text-muted);">
+                        <i class="fas fa-shield-halved" style="font-size:28px;display:block;margin-bottom:10px;opacity:.3;"></i>
+                        No audit events found matching your filters.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if logs.has_other_pages %}
+    <div class="card-footer flex-between">
+        <span class="text-muted" style="font-size:12px;">Page {{ logs.number }} of {{ logs.paginator.num_pages }}</span>
+        <div style="display:flex;gap:4px;">
+            {% if logs.has_previous %}
+            <a href="?page={{ logs.previous_page_number }}&search={{ filters.search }}&action={{ filters.action }}&model={{ filters.model }}" class="btn btn-secondary btn-sm"><i class="fas fa-chevron-left"></i></a>
+            {% endif %}
+            {% if logs.has_next %}
+            <a href="?page={{ logs.next_page_number }}&search={{ filters.search }}&action={{ filters.action }}&model={{ filters.model }}" class="btn btn-secondary btn-sm"><i class="fas fa-chevron-right"></i></a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

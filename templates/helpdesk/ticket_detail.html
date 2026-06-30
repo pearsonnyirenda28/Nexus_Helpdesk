@@ -1,0 +1,387 @@
+{% extends 'base.html' %}
+{% block title %}{{ ticket.ticket_id }}{% endblock %}
+{% block page_title %}{{ ticket.ticket_id }}{% endblock %}
+{% block breadcrumb %}Tickets / {{ ticket.ticket_id }}{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-6">
+    <div style="display:flex;align-items:center;gap:12px;">
+        <a href="{% url 'ticket_list' %}" class="btn btn-secondary btn-sm btn-icon">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <div>
+            <h1 style="font-size:17px;">{{ ticket.title }}</h1>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+                <span class="badge badge-{{ ticket.status|lower }}">{{ ticket.get_status_display }}</span>
+                <span class="badge badge-{{ ticket.priority|lower }}">{{ ticket.priority }}</span>
+                {% if ticket.is_overdue %}
+                <span class="badge badge-critical">
+                    <i class="fas fa-clock"></i> OVERDUE
+                </span>
+                {% endif %}
+                {% if ticket.voip_call %}
+                <span class="badge"
+                    style="background:rgba(35,134,54,.15);color:var(--success-text);
+                           border:1px solid rgba(63,185,80,.2);">
+                    <i class="fas fa-phone"></i> From VoIP Call
+                </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <a href="{% url 'ticket_edit' ticket.ticket_id %}" class="btn btn-secondary btn-sm">
+        <i class="fas fa-edit"></i> Edit
+    </a>
+</div>
+
+<div class="grid" style="grid-template-columns:1fr 310px;gap:20px;align-items:start;">
+
+    <!-- ── MAIN COLUMN ────────────────────────────── -->
+    <div>
+
+        <!-- Description -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="header-icon"
+                     style="background:rgba(31,111,235,.2);color:var(--accent-hover);">
+                    <i class="fas fa-align-left"></i>
+                </div>
+                <h6>Description</h6>
+            </div>
+            <div class="card-body">
+                <p style="font-size:13px;line-height:1.75;color:var(--text-secondary);
+                           white-space:pre-wrap;">{{ ticket.description }}</p>
+            </div>
+        </div>
+
+        <!-- Change Status -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="header-icon"
+                     style="background:rgba(158,106,3,.2);color:var(--warning-text);">
+                    <i class="fas fa-arrow-right-arrow-left"></i>
+                </div>
+                <h6>Change Status</h6>
+            </div>
+            <div class="card-body">
+                <form method="post" style="display:flex;gap:10px;align-items:center;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="status_change">
+                    <select name="status" class="form-select" style="max-width:220px;">
+                        {% for val, label in status_choices %}
+                        <option value="{{ val }}"
+                            {% if ticket.status == val %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        Update Status
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Comments & Activity -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="header-icon"
+                     style="background:rgba(13,65,157,.2);color:var(--info-text);">
+                    <i class="fas fa-comments"></i>
+                </div>
+                <h6>Activity — {{ ticket.comments.count }} comment{{ ticket.comments.count|pluralize }}</h6>
+            </div>
+
+            {% for comment in ticket.comments.all %}
+            <div style="padding:14px 18px;border-bottom:1px solid var(--border-subtle);">
+                <div style="display:flex;justify-content:space-between;
+                            align-items:center;margin-bottom:8px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <div class="user-avatar" style="width:26px;height:26px;font-size:10px;">
+                            {% if comment.author %}{{ comment.author.username|first|upper }}{% else %}?{% endif %}
+                        </div>
+                        <strong style="font-size:13px;">
+                            {% if comment.author %}
+                                {{ comment.author.get_full_name|default:comment.author.username }}
+                            {% else %}Unknown{% endif %}
+                        </strong>
+                        {% if comment.is_internal %}
+                        <span class="badge"
+                            style="background:rgba(158,106,3,.2);color:var(--warning-text);
+                                   font-size:9px;">INTERNAL NOTE</span>
+                        {% endif %}
+                    </div>
+                    <span class="text-muted" style="font-size:10px;"
+                          title="{{ comment.created_at }}">
+                        {{ comment.created_at|timesince }} ago
+                    </span>
+                </div>
+                <p style="font-size:13px;color:var(--text-secondary);line-height:1.65;
+                           padding-left:34px;white-space:pre-wrap;">{{ comment.body }}</p>
+            </div>
+            {% empty %}
+            <div style="padding:28px;text-align:center;color:var(--text-muted);font-size:13px;">
+                <i class="fas fa-comment-slash"
+                   style="font-size:18px;margin-bottom:8px;display:block;opacity:.3;"></i>
+                No comments yet
+            </div>
+            {% endfor %}
+
+            <div class="card-footer">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="comment">
+                    <textarea name="body" class="form-control" rows="3"
+                              placeholder="Add a comment, resolution note, or update..."
+                              required></textarea>
+                    <div style="display:flex;justify-content:space-between;
+                                align-items:center;margin-top:10px;">
+                        <label style="display:flex;align-items:center;gap:6px;
+                                      font-size:12px;color:var(--text-secondary);cursor:pointer;">
+                            <input type="checkbox" name="is_internal"
+                                   style="accent-color:var(--accent);">
+                            Internal note only
+                        </label>
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="fas fa-paper-plane"></i> Post
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Audit Trail -->
+        <div class="card">
+            <div class="card-header">
+                <div class="header-icon"
+                     style="background:rgba(218,54,51,.12);color:var(--danger-text);">
+                    <i class="fas fa-shield-halved"></i>
+                </div>
+                <h6>Audit Trail</h6>
+            </div>
+            <div style="max-height:280px;overflow-y:auto;">
+                {% for log in audit_trail %}
+                <div style="padding:9px 16px;border-bottom:1px solid var(--border-subtle);
+                            display:flex;gap:10px;">
+                    <div style="width:6px;height:6px;background:var(--accent);
+                                border-radius:50%;margin-top:5px;flex-shrink:0;"></div>
+                    <div>
+                        <div style="font-size:12px;color:var(--text-secondary);">
+                            <strong style="color:var(--text-primary);">
+                                {{ log.user.username|default:"System" }}
+                            </strong>
+                            — {{ log.get_action_display }}
+                            {% if log.changes %}
+                            <span class="text-muted">
+                                ({{ log.changes|length }} change{{ log.changes|length|pluralize }})
+                            </span>
+                            {% endif %}
+                        </div>
+                        {% if log.notes %}
+                        <div style="font-size:11px;color:var(--text-muted);">{{ log.notes }}</div>
+                        {% endif %}
+                        <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">
+                            {{ log.timestamp|date:"Y-m-d H:i:s" }}
+                            {% if log.ip_address %} · {{ log.ip_address }}{% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div style="padding:16px;text-align:center;color:var(--text-muted);
+                            font-size:13px;">No audit events</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ── SIDEBAR ─────────────────────────────────── -->
+    <div>
+
+        <!-- Details -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6><i class="fas fa-info-circle"
+                       style="color:var(--info-text);margin-right:6px;"></i>Details</h6>
+            </div>
+            <div class="card-body" style="font-size:13px;display:grid;gap:12px;">
+                <div>
+                    <div class="text-muted"
+                         style="font-size:10px;text-transform:uppercase;
+                                letter-spacing:.5px;margin-bottom:2px;">Ticket ID</div>
+                    <div class="mono" style="font-weight:700;">{{ ticket.ticket_id }}</div>
+                </div>
+                <div>
+                    <div class="text-muted"
+                         style="font-size:10px;text-transform:uppercase;
+                                letter-spacing:.5px;margin-bottom:2px;">Category</div>
+                    <div>{{ ticket.category.name|default:"Uncategorised" }}</div>
+                </div>
+                <div>
+                    <div class="text-muted"
+                         style="font-size:10px;text-transform:uppercase;
+                                letter-spacing:.5px;margin-bottom:2px;">Source</div>
+                    <div>{{ ticket.get_source_display }}</div>
+                </div>
+                <div>
+                    <div class="text-muted"
+                         style="font-size:10px;text-transform:uppercase;
+                                letter-spacing:.5px;margin-bottom:2px;">Created</div>
+                    <div>{{ ticket.created_at|date:"Y-m-d H:i" }}</div>
+                </div>
+                {% if ticket.resolved_at %}
+                <div>
+                    <div class="text-muted"
+                         style="font-size:10px;text-transform:uppercase;
+                                letter-spacing:.5px;margin-bottom:2px;">Resolved</div>
+                    <div>{{ ticket.resolved_at|date:"Y-m-d H:i" }}</div>
+                </div>
+                {% endif %}
+                {% if ticket.resolution_time_minutes %}
+                <div>
+                    <div class="text-muted"
+                         style="font-size:10px;text-transform:uppercase;
+                                letter-spacing:.5px;margin-bottom:2px;">Resolution Time</div>
+                    <div class="mono">{{ ticket.resolution_time_minutes }}m</div>
+                </div>
+                {% endif %}
+                {% if ticket.due_date %}
+                <div>
+                    <div class="text-muted"
+                         style="font-size:10px;text-transform:uppercase;
+                                letter-spacing:.5px;margin-bottom:2px;">Due Date</div>
+                    <div class="{% if ticket.is_overdue %}text-danger{% endif %}">
+                        {{ ticket.due_date|date:"Y-m-d H:i" }}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Requester — fully null-safe -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6><i class="fas fa-user"
+                       style="color:var(--info-text);margin-right:6px;"></i>Requester</h6>
+            </div>
+            <div class="card-body" style="font-size:13px;display:grid;gap:7px;">
+                <div style="font-weight:600;">
+                    {% if ticket.requester_name %}
+                        {{ ticket.requester_name }}
+                    {% elif ticket.requester %}
+                        {{ ticket.requester.get_full_name|default:ticket.requester.username }}
+                    {% else %}
+                        Unknown
+                    {% endif %}
+                </div>
+                {% if ticket.requester_email %}
+                <div class="text-muted">
+                    <i class="fas fa-envelope" style="width:14px;"></i>
+                    {{ ticket.requester_email }}
+                </div>
+                {% endif %}
+                {% if ticket.requester_phone %}
+                <div class="text-muted">
+                    <i class="fas fa-phone" style="width:14px;"></i>
+                    {{ ticket.requester_phone }}
+                </div>
+                {% endif %}
+                {% if ticket.requester_department %}
+                <div class="text-muted">
+                    <i class="fas fa-building" style="width:14px;"></i>
+                    {{ ticket.requester_department }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Assign Agent -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6><i class="fas fa-user-shield"
+                       style="color:var(--success-text);margin-right:6px;"></i>
+                    Assigned Agent</h6>
+            </div>
+            <div class="card-body">
+                {% if ticket.assigned_to %}
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                    <div class="user-avatar" style="width:28px;height:28px;font-size:11px;">
+                        {{ ticket.assigned_to.username|first|upper }}
+                    </div>
+                    <div>
+                        <div style="font-size:13px;font-weight:500;">
+                            {{ ticket.assigned_to.get_full_name|default:ticket.assigned_to.username }}
+                        </div>
+                        <div class="text-muted" style="font-size:10px;">
+                            @{{ ticket.assigned_to.username }}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if request.user.is_superuser %}
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="assign">
+                    <select name="agent_id" class="form-select"
+                            style="margin-bottom:8px;font-size:12px;">
+                        <option value="">— Unassigned —</option>
+                        {% for agent in agents %}
+                        <option value="{{ agent.pk }}"
+                            {% if ticket.assigned_to == agent %}selected{% endif %}>
+                            {{ agent.get_full_name|default:agent.username }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-secondary btn-sm"
+                            style="width:100%;justify-content:center;">
+                        <i class="fas fa-user-plus"></i> Assign
+                    </button>
+                </form>
+                {% elif not ticket.assigned_to %}
+                <p class="text-muted" style="font-size:12px;">
+                    <i class="fas fa-lock"></i> Unassigned — only administrators can assign tickets.
+                </p>
+                {% else %}
+                <p class="text-muted" style="font-size:12px;">
+                    <i class="fas fa-lock"></i> Only administrators can reassign tickets.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Linked VoIP Call — only shown when present -->
+        {% if ticket.voip_call %}
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="fas fa-phone"
+                       style="color:var(--success-text);margin-right:6px;"></i>
+                    Linked VoIP Call</h6>
+            </div>
+            <div class="card-body" style="font-size:13px;display:grid;gap:7px;">
+                <div>
+                    <span class="text-muted">Caller:</span>
+                    <span class="mono"> {{ ticket.voip_call.caller_number }}</span>
+                </div>
+                {% if ticket.voip_call.caller_name %}
+                <div>
+                    <span class="text-muted">Name:</span>
+                    {{ ticket.voip_call.caller_name }}
+                </div>
+                {% endif %}
+                <div>
+                    <span class="text-muted">Duration:</span>
+                    <span class="mono">{{ ticket.voip_call.talk_duration_display }}</span>
+                </div>
+                <div>
+                    <span class="text-muted">Date:</span>
+                    {{ ticket.voip_call.initiated_at|date:"Y-m-d H:i" }}
+                </div>
+                <a href="{% url 'call_detail' ticket.voip_call.call_uuid %}"
+                   class="btn btn-secondary btn-sm"
+                   style="margin-top:4px;width:100%;justify-content:center;">
+                    <i class="fas fa-external-link-alt"></i> View Call Record
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
+    </div><!-- /sidebar -->
+</div>
+{% endblock %}

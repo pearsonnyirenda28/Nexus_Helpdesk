@@ -1,0 +1,161 @@
+{% extends 'base.html' %}
+{% block title %}Tickets{% endblock %}
+{% block page_title %}Ticket Queue{% endblock %}
+{% block breadcrumb %}Help Desk / All Tickets{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-6">
+    <div class="page-header" style="margin:0;">
+        <h1>Tickets</h1>
+        <p>{{ total_count }} ticket{{ total_count|pluralize }} found</p>
+    </div>
+    <a href="{% url 'ticket_create' %}" class="btn btn-primary">
+        <i class="fas fa-plus"></i> Create Ticket
+    </a>
+</div>
+
+<!-- FILTERS -->
+<div class="card mb-6">
+    <div class="card-body" style="padding:16px;">
+        <form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+            <div style="flex:1;min-width:200px;">
+                <input type="text" name="search" class="form-control" placeholder="Search tickets, IDs, email..." value="{{ filters.search }}">
+            </div>
+            <div style="min-width:140px;">
+                <select name="status" class="form-select">
+                    <option value="">All Statuses</option>
+                    {% for val, label in status_choices %}
+                    <option value="{{ val }}" {% if filters.status == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="min-width:140px;">
+                <select name="priority" class="form-select">
+                    <option value="">All Priorities</option>
+                    {% for val, label in priority_choices %}
+                    <option value="{{ val }}" {% if filters.priority == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="min-width:140px;">
+                <select name="category" class="form-select">
+                    <option value="">All Categories</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}" {% if filters.category == cat.id|stringformat:"s" %}selected{% endif %}>{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="min-width:130px;">
+                <select name="assigned" class="form-select">
+                    <option value="">All Agents</option>
+                    <option value="me" {% if filters.assigned == 'me' %}selected{% endif %}>My Tickets</option>
+                    <option value="unassigned" {% if filters.assigned == 'unassigned' %}selected{% endif %}>Unassigned</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Filter</button>
+            <a href="{% url 'ticket_list' %}" class="btn btn-secondary"><i class="fas fa-times"></i> Clear</a>
+        </form>
+    </div>
+</div>
+
+<!-- TICKETS TABLE -->
+<div class="card">
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Title</th>
+                    <th>Category</th>
+                    <th>Requester</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>Source</th>
+                    <th>Assigned To</th>
+                    <th>Created</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ticket in tickets %}
+                <tr {% if ticket.is_overdue %}style="border-left:2px solid var(--danger-text);"{% endif %}>
+                    <td>
+                        <a href="{% url 'ticket_detail' ticket.ticket_id %}" class="mono" style="font-weight:600;">{{ ticket.ticket_id }}</a>
+                        {% if ticket.is_overdue %}
+                        <span class="badge badge-critical" style="margin-left:4px;font-size:9px;">OVERDUE</span>
+                        {% endif %}
+                    </td>
+                    <td style="max-width:250px;">
+                        <a href="{% url 'ticket_detail' ticket.ticket_id %}" style="color:var(--text-primary);font-weight:500;">
+                            {{ ticket.title|truncatechars:50 }}
+                        </a>
+                    </td>
+                    <td>
+                        {% if ticket.category %}
+                        <span style="font-size:12px;color:var(--text-secondary);">
+                            <i class="{{ ticket.category.icon }}" style="color:{{ ticket.category.color }};"></i>
+                            {{ ticket.category.name }}
+                        </span>
+                        {% else %}<span class="text-muted">—</span>{% endif %}
+                    </td>
+                    <td>
+                        <div style="font-size:12px;">
+                            {% if ticket.requester_name %}{{ ticket.requester_name }}
+                            {% elif ticket.requester %}{{ ticket.requester.get_full_name|default:ticket.requester.username }}
+                            {% else %}—{% endif %}
+                        </div>
+                        {% if ticket.requester_department %}<div class="text-muted" style="font-size:10px;">{{ ticket.requester_department }}</div>{% endif %}
+                    </td>
+                    <td><span class="badge badge-{{ ticket.priority|lower }}">{{ ticket.priority }}</span></td>
+                    <td><span class="badge badge-{{ ticket.status|lower }}">{{ ticket.get_status_display }}</span></td>
+                    <td>
+                        <span style="font-size:11px;color:var(--text-muted);">
+                            {% if ticket.source == 'VOIP' %}<i class="fas fa-phone" style="color:var(--success-text);"></i>{% elif ticket.source == 'EMAIL' %}<i class="fas fa-envelope"></i>{% else %}<i class="fas fa-globe"></i>{% endif %}
+                            {{ ticket.get_source_display }}
+                        </span>
+                    </td>
+                    <td style="font-size:12px;">
+                        {% if ticket.assigned_to %}
+                        <div class="flex-center gap-2">
+                            <div class="user-avatar" style="width:22px;height:22px;font-size:9px;">{{ ticket.assigned_to.username|first|upper }}</div>
+                            {{ ticket.assigned_to.username }}
+                        </div>
+                        {% else %}<span class="text-muted">Unassigned</span>{% endif %}
+                    </td>
+                    <td style="font-size:11px;color:var(--text-muted);" title="{{ ticket.created_at }}">{{ ticket.created_at|timesince }} ago</td>
+                    <td>
+                        <a href="{% url 'ticket_detail' ticket.ticket_id %}" class="btn btn-secondary btn-sm btn-icon" title="View">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="10" style="text-align:center;padding:48px;color:var(--text-muted);">
+                        <i class="fas fa-inbox" style="font-size:32px;margin-bottom:12px;display:block;"></i>
+                        No tickets found matching your filters.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- PAGINATION -->
+    {% if tickets.has_other_pages %}
+    <div class="card-footer" style="display:flex;justify-content:space-between;align-items:center;">
+        <span class="text-muted" style="font-size:12px;">
+            Page {{ tickets.number }} of {{ tickets.paginator.num_pages }}
+        </span>
+        <div style="display:flex;gap:4px;">
+            {% if tickets.has_previous %}
+            <a href="?page={{ tickets.previous_page_number }}&status={{ filters.status }}&priority={{ filters.priority }}&search={{ filters.search }}" class="btn btn-secondary btn-sm"><i class="fas fa-chevron-left"></i></a>
+            {% endif %}
+            {% if tickets.has_next %}
+            <a href="?page={{ tickets.next_page_number }}&status={{ filters.status }}&priority={{ filters.priority }}&search={{ filters.search }}" class="btn btn-secondary btn-sm"><i class="fas fa-chevron-right"></i></a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

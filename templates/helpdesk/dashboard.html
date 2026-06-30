@@ -1,0 +1,375 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block breadcrumb %}Overview & Live Status{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+
+<!-- ── TICKET STAT ROW ─────────────────────────────────────────── -->
+<div class="grid grid-4 mb-6">
+    <div class="stat-card">
+        <div class="flex-between mb-4">
+            <span class="stat-label">Open Tickets</span>
+            <div class="stat-icon" style="background:rgba(13,65,157,.2);color:var(--info-text);">
+                <i class="fas fa-circle-dot"></i>
+            </div>
+        </div>
+        <div class="stat-value">{{ stats.total_open }}</div>
+        <div style="font-size:11px;color:var(--warning-text);">
+            {{ stats.total_pending }} pending
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="flex-between mb-4">
+            <span class="stat-label">Resolved Today</span>
+            <div class="stat-icon" style="background:rgba(35,134,54,.2);color:var(--success-text);">
+                <i class="fas fa-circle-check"></i>
+            </div>
+        </div>
+        <div class="stat-value">{{ stats.total_resolved_today }}</div>
+        <div style="font-size:11px;" class="text-success">{{ stats.resolved_this_week }} this week</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="flex-between mb-4">
+            <span class="stat-label">Critical Issues</span>
+            <div class="stat-icon" style="background:rgba(218,54,51,.2);color:var(--danger-text);">
+                <i class="fas fa-fire"></i>
+            </div>
+        </div>
+        <div class="stat-value {% if stats.critical_open %}text-danger{% endif %}">
+            {{ stats.critical_open }}
+        </div>
+        <div style="font-size:11px;"
+             class="{% if stats.overdue_count %}text-danger{% else %}text-muted{% endif %}">
+            {{ stats.overdue_count }} overdue
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="flex-between mb-4">
+            <span class="stat-label">Avg Resolution</span>
+            <div class="stat-icon" style="background:rgba(31,111,235,.2);color:var(--accent-hover);">
+                <i class="fas fa-stopwatch"></i>
+            </div>
+        </div>
+        <div class="stat-value mono" style="font-size:22px;">
+            {{ stats.avg_resolution_minutes|floatformat:0 }}m
+        </div>
+        <div class="text-muted" style="font-size:11px;">avg across all tickets</div>
+    </div>
+</div>
+
+<!-- ── VOIP STAT ROW ───────────────────────────────────────────── -->
+<div class="grid grid-4 mb-6">
+    <div class="stat-card"
+         style="border-color:{% if voip_stats.active_calls %}rgba(63,185,80,.3){% else %}var(--border){% endif %};">
+        <div class="flex-between mb-4">
+            <span class="stat-label">Active Calls</span>
+            <div class="live-dot" style="{% if not voip_stats.active_calls %}opacity:.3;{% endif %}"></div>
+        </div>
+        <div class="stat-value text-success" id="dash-active-calls">{{ voip_stats.active_calls }}</div>
+        <div class="text-muted" style="font-size:11px;">live right now</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="flex-between mb-4">
+            <span class="stat-label">Calls Today</span>
+            <div class="stat-icon" style="background:rgba(31,111,235,.15);color:var(--accent-hover);">
+                <i class="fas fa-phone"></i>
+            </div>
+        </div>
+        <div class="stat-value">{{ voip_stats.calls_today }}</div>
+        <div class="text-danger" style="font-size:11px;">{{ voip_stats.missed_today }} missed</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="flex-between mb-4">
+            <span class="stat-label">Avg Call Duration</span>
+            <div class="stat-icon" style="background:rgba(158,106,3,.15);color:var(--warning-text);">
+                <i class="fas fa-clock"></i>
+            </div>
+        </div>
+        <div class="stat-value mono" style="font-size:22px;">
+            {{ voip_stats.avg_talk_today|floatformat:0 }}s
+        </div>
+        <div class="text-muted" style="font-size:11px;">today's average</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="flex-between mb-4">
+            <span class="stat-label">New This Week</span>
+            <div class="stat-icon" style="background:rgba(110,118,129,.15);color:var(--text-secondary);">
+                <i class="fas fa-ticket"></i>
+            </div>
+        </div>
+        <div class="stat-value">{{ stats.new_this_week }}</div>
+        <div class="text-muted" style="font-size:11px;">tickets created</div>
+    </div>
+</div>
+
+<!-- ── CHARTS ROW ──────────────────────────────────────────────── -->
+<div class="grid mb-6" style="grid-template-columns:1.4fr 1fr;">
+    <div class="card">
+        <div class="card-header">
+            <div class="header-icon" style="background:rgba(31,111,235,.2);color:var(--accent-hover);">
+                <i class="fas fa-chart-bar"></i>
+            </div>
+            <h6>Tickets by Status</h6>
+        </div>
+        <div class="card-body" style="height:220px;position:relative;">
+            {% if status_data %}
+            <canvas id="statusChart"></canvas>
+            {% else %}
+            <div style="display:flex;align-items:center;justify-content:center;height:100%;
+                color:var(--text-muted);font-size:13px;">No ticket data yet</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="header-icon" style="background:rgba(158,106,3,.2);color:var(--warning-text);">
+                <i class="fas fa-chart-pie"></i>
+            </div>
+            <h6>Priority Distribution</h6>
+        </div>
+        <div class="card-body" style="height:220px;position:relative;">
+            {% if priority_data %}
+            <canvas id="priorityChart"></canvas>
+            {% else %}
+            <div style="display:flex;align-items:center;justify-content:center;height:100%;
+                color:var(--text-muted);font-size:13px;">No ticket data yet</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- ── TABLES ROW ─────────────────────────────────────────────── -->
+<div class="grid grid-2 mb-6">
+
+    <!-- Recent Tickets -->
+    <div class="card">
+        <div class="card-header">
+            <div class="header-icon" style="background:rgba(13,65,157,.2);color:var(--info-text);">
+                <i class="fas fa-ticket"></i>
+            </div>
+            <h6>Recent Tickets</h6>
+            <a href="{% url 'ticket_list' %}" class="btn btn-secondary btn-sm"
+               style="margin-left:auto;">View All</a>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead><tr><th>ID</th><th>Title</th><th>Priority</th><th>Status</th></tr></thead>
+                <tbody>
+                    {% for t in recent_tickets %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'ticket_detail' t.ticket_id %}"
+                               class="mono" style="font-weight:600;">{{ t.ticket_id }}</a>
+                        </td>
+                        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                            <a href="{% url 'ticket_detail' t.ticket_id %}"
+                               style="color:var(--text-primary);">{{ t.title|truncatechars:45 }}</a>
+                        </td>
+                        <td><span class="badge badge-{{ t.priority|lower }}">{{ t.priority }}</span></td>
+                        <td><span class="badge badge-{{ t.status|lower }}">{{ t.get_status_display }}</span></td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="text-muted"
+                            style="text-align:center;padding:24px;">No tickets yet</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Active VoIP Calls -->
+    <div class="card">
+        <div class="card-header">
+            <div class="header-icon" style="background:rgba(35,134,54,.2);color:var(--success-text);">
+                <i class="fas fa-phone-volume"></i>
+            </div>
+            <h6>Active Calls</h6>
+            <a href="{% url 'call_board' %}" class="btn btn-secondary btn-sm"
+               style="margin-left:auto;">Live Board</a>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead><tr><th>Caller</th><th>Destination</th><th>Status</th><th>Duration</th></tr></thead>
+                <tbody>
+                    {% for call in active_calls %}
+                    <tr>
+                        <td>
+                            <div class="mono" style="font-weight:600;">{{ call.caller_number }}</div>
+                            {% if call.caller_name %}
+                            <div class="text-muted" style="font-size:10px;">{{ call.caller_name }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="text-muted mono" style="font-size:11px;">{{ call.destination_number }}</td>
+                        <td><span class="badge badge-{{ call.status|lower }}">{{ call.status }}</span></td>
+                        <td class="mono">{{ call.talk_duration_display }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" style="text-align:center;padding:28px;color:var(--text-muted);">
+                            <i class="fas fa-phone-slash" style="margin-right:6px;opacity:.4;"></i>
+                            No active calls
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ── BOTTOM ROW: Agent Workload + Audit ─────────────────────── -->
+<div class="grid grid-2">
+
+    <div class="card">
+        <div class="card-header">
+            <div class="header-icon" style="background:rgba(110,118,129,.2);color:var(--text-secondary);">
+                <i class="fas fa-users"></i>
+            </div>
+            <h6>Agent Workload</h6>
+        </div>
+        <div class="card-body">
+            {% for agent in agent_workload %}
+            <div style="margin-bottom:14px;">
+                <div class="flex-between" style="margin-bottom:5px;">
+                    <span style="font-size:13px;">
+                        {{ agent.assigned_to__first_name|default:'' }}
+                        {{ agent.assigned_to__last_name|default:agent.assigned_to__username }}
+                    </span>
+                    <span class="mono text-muted" style="font-size:11px;">
+                        {{ agent.count }} open
+                    </span>
+                </div>
+                <div style="height:5px;background:var(--bg-tertiary);border-radius:3px;">
+                    <div style="height:100%;background:var(--accent);border-radius:3px;
+                         width:{% widthratio agent.count 20 100 %}%;max-width:100%;"></div>
+                </div>
+            </div>
+            {% empty %}
+            <p class="text-muted" style="font-size:13px;">No assigned open tickets</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="header-icon" style="background:rgba(218,54,51,.12);color:var(--danger-text);">
+                <i class="fas fa-shield-halved"></i>
+            </div>
+            <h6>Recent Audit Events</h6>
+            <a href="{% url 'audit_log' %}" class="btn btn-secondary btn-sm"
+               style="margin-left:auto;">Full Log</a>
+        </div>
+        <div style="max-height:280px;overflow-y:auto;">
+            {% for log in recent_audit %}
+            <div style="padding:9px 16px;border-bottom:1px solid var(--border-subtle);
+                        display:flex;gap:10px;align-items:flex-start;">
+                <div style="width:6px;height:6px;border-radius:50%;background:var(--accent);
+                            margin-top:5px;flex-shrink:0;"></div>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:12px;color:var(--text-secondary);">
+                        <strong style="color:var(--text-primary);">
+                            {{ log.user.username|default:"System" }}
+                        </strong>
+                        {{ log.get_action_display }}
+                        {% if log.object_repr %}
+                        <span class="text-muted">— {{ log.object_repr|truncatechars:28 }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-muted" style="font-size:10px;margin-top:2px;">
+                        {{ log.timestamp|timesince }} ago
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">
+                No audit events yet
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const tickColor = getComputedStyle(document.documentElement);
+
+// ── Status chart ───────────────────────────────────────────────────────────
+const statusData = {{ status_data|safe }};
+if (statusData.length && document.getElementById('statusChart')) {
+    const statusColors = {
+        OPEN:'#17a2b8', IN_PROGRESS:'#1f6feb', PENDING:'#d29922',
+        RESOLVED:'#3fb950', CLOSED:'#6e7681', REOPENED:'#f85149'
+    };
+    new Chart(document.getElementById('statusChart'), {
+        type: 'bar',
+        data: {
+            labels: statusData.map(d => d.status.replace('_',' ')),
+            datasets: [{
+                data: statusData.map(d => d.count),
+                backgroundColor: statusData.map(d => statusColors[d.status] || '#6e7681'),
+                borderRadius: 4, borderSkipped: false,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { color:'#21262d' }, ticks: { color:'#8b949e', font:{size:10} } },
+                y: { grid: { color:'#21262d' }, ticks: { color:'#8b949e' }, beginAtZero: true }
+            }
+        }
+    });
+}
+
+// ── Priority donut ─────────────────────────────────────────────────────────
+const priorityData = {{ priority_data|safe }};
+if (priorityData.length && document.getElementById('priorityChart')) {
+    const priorityColors = {
+        LOW:'#3fb950', MEDIUM:'#d29922', HIGH:'#f0883e', CRITICAL:'#f85149'
+    };
+    new Chart(document.getElementById('priorityChart'), {
+        type: 'doughnut',
+        data: {
+            labels: priorityData.map(d => d.priority),
+            datasets: [{
+                data: priorityData.map(d => d.count),
+                backgroundColor: priorityData.map(d => priorityColors[d.priority] || '#6e7681'),
+                borderWidth: 0,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, cutout: '65%',
+            plugins: {
+                legend: { labels: { color:'#8b949e', font:{size:11}, boxWidth:12 } }
+            }
+        }
+    });
+}
+
+// ── Refresh active calls counter ───────────────────────────────────────────
+async function refreshDashStats() {
+    try {
+        const r = await fetch('/dashboard/api/stats/');
+        if (r.ok) {
+            const d = await r.json();
+            document.getElementById('dash-active-calls').textContent = d.active_calls;
+        }
+    } catch(e) {}
+}
+setInterval(refreshDashStats, 15000);
+</script>
+{% endblock %}
