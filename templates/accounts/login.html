@@ -88,11 +88,7 @@
         <div class="alert"><i class="fas fa-exclamation-circle"></i> {{ message }}</div>
         {% endfor %}
 
-        <div class="default-creds">
-            <p><i class="fas fa-circle-info"></i> Default admin credentials</p>
-            <div class="cred-row"><span class="cred-key">Username</span><span class="cred-val">admin</span></div>
-            <div class="cred-row"><span class="cred-key">Password</span><span class="cred-val">admin123!</span></div>
-        </div>
+        
 
         <form method="post" id="loginForm">
             {% csrf_token %}
@@ -135,7 +131,8 @@
     </div>
 
     <div class="footer-note">
-        NexusDesk &copy; {% now "Y" %} &bull; IT Department Help Desk &bull; v1.0
+        NexusDesk &copy; {% now "Y" %} &bull; IT Department Help Desk &bull; v1.0 &bull;<br> Developed by Bl@de_zar | Pearson Nyirenda
+    </p>
     </div>
 </div>
 
