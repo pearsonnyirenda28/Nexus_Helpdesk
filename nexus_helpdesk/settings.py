@@ -18,16 +18,10 @@ DEBUG = True
 ALLOWED_HOSTS = ['*']
 
 # ── Multi-device / LAN access ─────────────────────────────────────────────────
-# Allows other devices on your network (phones, other PCs) to connect.
-# Find your PC's LAN IP: run  ipconfig  in CMD, look for IPv4 Address.
-# Then add it below and run the server with:
-#   py manage.py runserver 0.0.0.0:8000
-# Other devices open:  http://<your-ip>:8000
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://127.0.0.1:8000',
-    # Add your LAN IP here, e.g.:
-    # 'http://192.168.1.50:8000',
+    # Add your LAN IP here, e.g. 'http://192.168.1.50:8000',
 ]
 
 SESSION_COOKIE_SAMESITE = 'Lax'
@@ -43,9 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.humanize',
-    # Third-party
     'widget_tweaks',
-    # Local apps
     'accounts',
     'helpdesk.apps.HelpdeskConfig',
     'voip',
@@ -54,7 +46,6 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    # Year DB router — must come after session so it can read active year
     'helpdesk.db_router.YearDatabaseMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -64,8 +55,6 @@ MIDDLEWARE = [
     'helpdesk.middleware.AuditMiddleware',
 ]
 
-# ── Database Router ───────────────────────────────────────────────────────────
-# Routes helpdesk/voip queries to the year-selected DB when active
 DATABASE_ROUTERS = ['helpdesk.db_router.YearDatabaseRouter']
 
 ROOT_URLCONF = 'nexus_helpdesk.urls'
@@ -89,41 +78,30 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'nexus_helpdesk.wsgi.application'
 
-# --- DATABASE ---
-import os
+# ── Helper to strip quotes from environment variables ──────────────────────
+def strip_quotes(value):
+    """Remove leading/trailing single or double quotes from a string."""
+    if isinstance(value, str):
+        value = value.strip()
+        if (value.startswith("'") and value.endswith("'")) or \
+           (value.startswith('"') and value.endswith('"')):
+            return value[1:-1]
+    return value
+
+# ── Database ─────────────────────────────────────────────────────────────────
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'neondb'),
-        'USER': os.environ.get('DB_USER', 'neondb_owner'),
-        'PASSWORD': os.environ.get('DB_PASSWORD'),
-        'HOST': os.environ.get('DB_HOST', 'ep-bitter-tooth-awd1rg7u-pooler.c-12.us-east-1.aws.neon.tech'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
-        'OPTIONS': {
-            'sslmode': 'require',  # Essential for Neon DB cloud connections
-        },
+        'NAME': strip_quotes(os.environ.get('DB_NAME', 'neondb')),
+        'USER': strip_quotes(os.environ.get('DB_USER', 'neondb_owner')),
+        'PASSWORD': strip_quotes(os.environ.get('DB_PASSWORD')),
+        'HOST': strip_quotes(os.environ.get('DB_HOST', 'ep-bitter-tooth-awd1rg7u-pooler.c-12.us-east-1.aws.neon.tech')),
+        'PORT': strip_quotes(os.environ.get('DB_PORT', '5432')),
+        'OPTIONS': {'sslmode': 'require'},
     }
 }
-# PostgreSQL (recommended for production)
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': os.environ.get('DB_NAME', 'nexusdesk'),
-#         'USER': os.environ.get('DB_USER', 'nexusdesk_user'),
-#         'PASSWORD': os.environ.get('DB_PASSWORD', ''),
-#         'HOST': os.environ.get('DB_HOST', 'localhost'),
-#         'PORT': os.environ.get('DB_PORT', '5432'),
-#     }
-# }
 
-# SQLite (default for development)
-#DATABASES = {
- #   'default': {
-  #      'ENGINE': 'django.db.backends.sqlite3',
-   #     'NAME': BASE_DIR / 'nexusdesk.db',
- #   }
-#}
-
+# ── Password validation ─────────────────────────────────────────────────────
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -150,13 +128,10 @@ LOGIN_URL = '/accounts/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 
-# Email (configure for production)
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
-# Session
 SESSION_COOKIE_AGE = 28800  # 8 hours
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
-# VoIP Settings
 VOIP_DEFAULT_EXTENSION_LENGTH = 4
-VOIP_CALL_TIMEOUT_MINUTES = 60  # Auto-close calls after 60 min
+VOIP_CALL_TIMEOUT_MINUTES = 60
