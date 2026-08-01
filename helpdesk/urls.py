@@ -1,7 +1,15 @@
 from django.urls import path
+from django.views.generic import TemplateView
 from . import views
 
 urlpatterns = [
+    # Manifest for PWA – serve JSON with correct content type
+    path('manifest.json', TemplateView.as_view(
+        template_name='manifest.json',
+        content_type='application/json'
+    ), name='manifest'),
+
+    # Your existing URLs
     path('', views.dashboard, name='dashboard'),
     path('tickets/', views.ticket_list, name='ticket_list'),
     path('tickets/create/', views.ticket_create, name='ticket_create'),
