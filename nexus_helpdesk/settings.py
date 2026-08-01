@@ -45,6 +45,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',          # <-- Whitenoise
     'django.contrib.sessions.middleware.SessionMiddleware',
     'helpdesk.db_router.YearDatabaseMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -88,7 +89,7 @@ def strip_quotes(value):
             return value[1:-1]
     return value
 
-# ── Database ─────────────────────────────────────────────────────────────────
+# ── Database ──────────────────────────────────────────────────────────────────
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -101,7 +102,7 @@ DATABASES = {
     }
 }
 
-# ── Password validation ─────────────────────────────────────────────────────
+# ── Password validation ──────────────────────────────────────────────────────
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -114,9 +115,11 @@ TIME_ZONE = 'Africa/Harare'
 USE_I18N = True
 USE_TZ = True
 
+# ── Static files (Whitenoise) ──────────────────────────────────────────────
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'

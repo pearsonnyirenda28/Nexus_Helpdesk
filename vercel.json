@@ -1,5 +1,4 @@
 {
-  "buildCommand": "pip install -r requirements.txt && python manage.py collectstatic --noinput",
   "builds": [
     {
       "src": "nexus_helpdesk/wsgi.py",
@@ -7,10 +6,6 @@
     }
   ],
   "routes": [
-    {
-      "src": "/static/(.*)",
-      "dest": "/staticfiles/$1"
-    },
     {
       "src": "/(.*)",
       "dest": "nexus_helpdesk/wsgi.py"
