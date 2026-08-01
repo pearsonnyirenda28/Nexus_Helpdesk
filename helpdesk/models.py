@@ -85,7 +85,10 @@ class Ticket(models.Model):
     requester_name = models.CharField(max_length=150, blank=True, help_text='If requester is not a system user')
     requester_email = models.EmailField(blank=True)
     requester_phone = models.CharField(max_length=30, blank=True)
-    requester_department = models.CharField(max_length=100, blank=True)
+    requester_department = models.CharField(max_length=100, blank=True,
+                                            help_text='e.g. Revenue Department, Finance')
+    requester_section    = models.CharField(max_length=100, blank=True,
+                                            help_text='Sub-section within department, e.g. Accounts Payable')
     assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets_assigned')
 
     # Timestamps
@@ -253,3 +256,157 @@ class KnowledgeBase(models.Model):
 
     def __str__(self):
         return self.title
+
+
+# ── Glossary ──────────────────────────────────────────────────────────────────
+
+class GlossaryTerm(models.Model):
+    term        = models.CharField(max_length=120, unique=True)
+    definition  = models.TextField()
+    category    = models.CharField(max_length=80, blank=True)
+    example     = models.TextField(blank=True)
+    added_by    = models.ForeignKey(User, on_delete=models.SET_NULL,
+                                    null=True, related_name='glossary_terms')
+    created_at  = models.DateTimeField(auto_now_add=True)
+    updated_at  = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['term']
+        verbose_name = 'Glossary Term'
+
+    def __str__(self):
+        return self.term
+
+
+# ── Yearly Database Registry ──────────────────────────────────────────────────
+
+class DatabaseYear(models.Model):
+    year        = models.PositiveIntegerField(unique=True)
+    db_name     = models.CharField(max_length=100)
+    db_user     = models.CharField(max_length=100, blank=True)
+    db_host     = models.CharField(max_length=100, blank=True)
+    db_port     = models.CharField(max_length=10, default='5432')
+    description = models.TextField(blank=True)
+    is_active   = models.BooleanField(default=True)
+    is_current  = models.BooleanField(default=False)
+    created_by  = models.ForeignKey(User, on_delete=models.SET_NULL,
+                                    null=True, related_name='created_db_years')
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-year']
+        verbose_name = 'Database Year'
+
+    def __str__(self):
+        return f'BeitDesk {self.year} ({self.db_name})'
+
+    def save(self, *args, **kwargs):
+        if self.is_current:
+            DatabaseYear.objects.exclude(pk=self.pk).update(is_current=False)
+        super().save(*args, **kwargs)
+
+    @property
+    def db_config(self):
+        import os
+        return {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': self.db_name,
+            'USER': self.db_user or os.environ.get('DB_USER', 'beitdesk_user'),
+            'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+            'HOST': self.db_host or os.environ.get('DB_HOST', 'localhost'),
+            'PORT': self.db_port or '5432',
+        }
+
+
+# ── Word Prediction / Autocomplete ───────────────────────────────────────────
+
+class LearnedPhrase(models.Model):
+    """
+    Stores phrases extracted from real ticket/comment text.
+    Used to power field-aware autocomplete suggestions as users type.
+    Phrases are learned automatically when tickets and comments are saved.
+    """
+    FIELD_TITLE       = 'title'
+    FIELD_DESCRIPTION = 'description'
+    FIELD_COMMENT     = 'comment'
+    FIELD_REQUESTER   = 'requester_name'
+
+    FIELD_CHOICES = [
+        (FIELD_TITLE,       'Ticket Title'),
+        (FIELD_DESCRIPTION, 'Ticket Description'),
+        (FIELD_COMMENT,     'Comment / Note'),
+        (FIELD_REQUESTER,   'Requester Name'),
+    ]
+
+    phrase      = models.CharField(max_length=200, db_index=True)
+    field_name  = models.CharField(max_length=30, choices=FIELD_CHOICES, db_index=True)
+    category    = models.CharField(max_length=80, blank=True, db_index=True,
+                                   help_text='Category slug if phrase is category-specific')
+    use_count   = models.PositiveIntegerField(default=1)
+    last_used   = models.DateTimeField(auto_now=True)
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('phrase', 'field_name')]
+        ordering        = ['-use_count', '-last_used']
+        verbose_name    = 'Learned Phrase'
+
+    def __str__(self):
+        return f'[{self.field_name}] {self.phrase} (×{self.use_count})'
+
+    @classmethod
+    def learn(cls, text, field_name, category=''):
+        """
+        Extract n-grams from text and upsert into the learned phrases table.
+        Learns single words (>=4 chars) and 2–4 word phrases.
+        Filters out noise words and very short tokens.
+        """
+        if not text or len(text.strip()) < 3:
+            return
+
+        import re
+        # Normalise — lowercase, strip punctuation except hyphens
+        text = re.sub(r"[^\w\s\-']", ' ', text.lower())
+        tokens = [t for t in text.split() if len(t) >= 3]
+
+        # Stop words to ignore as standalone suggestions
+        STOP = {
+            'the','and','for','are','was','but','not','you','all','can','her',
+            'was','one','our','out','day','get','has','him','his','how','its',
+            'may','new','now','old','see','two','way','who','boy','did','its',
+            'let','put','say','she','too','use','with','this','that','from',
+            'have','they','been','said','each','which','their','time','will',
+            'about','would','there','could','these','other','more','into',
+            'some','than','then','them','well','also','when','what','your'
+        }
+
+        phrases_to_learn = set()
+
+        # Single meaningful words (≥4 chars, not a stop word)
+        for token in tokens:
+            if len(token) >= 4 and token not in STOP:
+                phrases_to_learn.add(token)
+
+        # 2-gram and 3-gram phrases
+        for n in (2, 3):
+            for i in range(len(tokens) - n + 1):
+                gram = tokens[i:i + n]
+                # Skip if all tokens are stop words
+                if all(t in STOP for t in gram):
+                    continue
+                phrases_to_learn.add(' '.join(gram))
+
+        # Upsert each phrase
+        for phrase in phrases_to_learn:
+            if len(phrase) > 200:
+                continue
+            obj, created = cls.objects.get_or_create(
+                phrase=phrase,
+                field_name=field_name,
+                defaults={'category': category, 'use_count': 1},
+            )
+            if not created:
+                obj.use_count += 1
+                if category and not obj.category:
+                    obj.category = category
+                obj.save(update_fields=['use_count', 'last_used', 'category'])

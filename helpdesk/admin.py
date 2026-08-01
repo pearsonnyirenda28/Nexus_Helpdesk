@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Ticket, TicketComment, Category, Tag, AuditLog, KnowledgeBase, TicketAttachment
+from .models import Ticket, TicketComment, Category, Tag, AuditLog, KnowledgeBase, TicketAttachment, GlossaryTerm, DatabaseYear, LearnedPhrase
 
 
 @admin.register(Category)
@@ -61,3 +61,44 @@ class KnowledgeBaseAdmin(admin.ModelAdmin):
     list_filter = ['is_published', 'category']
     search_fields = ['title', 'content']
     prepopulated_fields = {'slug': ('title',)}
+
+
+@admin.register(GlossaryTerm)
+class GlossaryTermAdmin(admin.ModelAdmin):
+    list_display  = ['term', 'category', 'added_by', 'created_at']
+    list_filter   = ['category']
+    search_fields = ['term', 'definition']
+    readonly_fields = ['added_by', 'created_at', 'updated_at']
+
+    def save_model(self, request, obj, form, change):
+        if not obj.pk:
+            obj.added_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(DatabaseYear)
+class DatabaseYearAdmin(admin.ModelAdmin):
+    list_display  = ['year', 'db_name', 'is_current', 'is_active', 'created_by', 'created_at']
+    list_filter   = ['is_current', 'is_active']
+    readonly_fields = ['created_by', 'created_at']
+
+    def save_model(self, request, obj, form, change):
+        if not obj.pk:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(LearnedPhrase)
+class LearnedPhraseAdmin(admin.ModelAdmin):
+    list_display  = ['phrase', 'field_name', 'category', 'use_count', 'last_used']
+    list_filter   = ['field_name', 'category']
+    search_fields = ['phrase']
+    readonly_fields = ['use_count', 'last_used', 'created_at']
+    ordering      = ['-use_count', '-last_used']
+
+    actions = ['reset_counts']
+
+    def reset_counts(self, request, queryset):
+        queryset.update(use_count=1)
+        self.message_user(request, f'Reset use counts for {queryset.count()} phrases.')
+    reset_counts.short_description = 'Reset use counts to 1'
