@@ -99,7 +99,9 @@ class Ticket(models.Model):
     closed_at = models.DateTimeField(null=True, blank=True)
 
     # SLA
-    sla_breach = models.BooleanField(default=False)
+    sla_breach             = models.BooleanField(default=False)
+    escalation_level       = models.PositiveSmallIntegerField(default=0)
+    escalation_notified_at = models.DateTimeField(null=True, blank=True)
     resolution_time_minutes = models.PositiveIntegerField(null=True, blank=True)
 
     # Linked VoIP call
@@ -410,3 +412,14 @@ class LearnedPhrase(models.Model):
                 if category and not obj.category:
                     obj.category = category
                 obj.save(update_fields=['use_count', 'last_used', 'category'])
+
+
+class PendingNotification(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="pending_notifications")
+    payload = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    delivered = models.BooleanField(default=False)
+    class Meta:
+        ordering = ["created_at"]
+    def __str__(self):
+        return f"Notification for {self.user.username}"

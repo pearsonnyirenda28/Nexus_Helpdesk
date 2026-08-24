@@ -13,21 +13,42 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'beitdesk-change-this-in-production-use-env-vars')
 
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
 # ── Multi-device / LAN access ─────────────────────────────────────────────────
+# Find your PC's LAN IP: run  ipconfig  in CMD, look for IPv4 Address.
+#
+# FOR NORMAL HTTP (LAN only):
+#   py manage.py runserver 0.0.0.0:8000
+#   Other devices: http://<your-ip>:8000
+#
+# FOR HTTPS (required for PWA install on other devices):
+#   pip install werkzeug
+#   python run_https.py
+#   Other devices: https://<your-ip>:8000
+#
+# Replace 192.168.1.171 below with YOUR actual LAN IP address.
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://127.0.0.1:8000',
-    # Add your LAN IP here, e.g. 'http://192.168.1.50:8000',
+    'https://localhost:8000',
+    'https://127.0.0.1:8000',
+    # Your LAN IP — update this to match your ipconfig IPv4 address:
+    'http://192.168.1.171:8000',
+    'https://192.168.1.171:8000',
 ]
 
+# Cookie settings — 'Lax' works for both HTTP and HTTPS on LAN
 SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_HTTPONLY = True
-CSRF_COOKIE_SAMESITE = 'Lax'
-CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SAMESITE    = 'Lax'
+CSRF_COOKIE_HTTPONLY    = False
+
+# Allow session cookies over HTTPS
+SESSION_COOKIE_SECURE = False   # Set True only if you ALWAYS use HTTPS
+CSRF_COOKIE_SECURE    = False   # Set True only if you ALWAYS use HTTPS
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -37,7 +58,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.humanize',
+    # Third-party
     'widget_tweaks',
+    # Local apps
     'accounts',
     'helpdesk.apps.HelpdeskConfig',
     'voip',
@@ -45,8 +68,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',          # <-- Whitenoise
     'django.contrib.sessions.middleware.SessionMiddleware',
+    # Year DB router — must come after session so it can read active year
     'helpdesk.db_router.YearDatabaseMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -56,6 +79,8 @@ MIDDLEWARE = [
     'helpdesk.middleware.AuditMiddleware',
 ]
 
+# ── Database Router ───────────────────────────────────────────────────────────
+# Routes helpdesk/voip queries to the year-selected DB when active
 DATABASE_ROUTERS = ['helpdesk.db_router.YearDatabaseRouter']
 
 ROOT_URLCONF = 'nexus_helpdesk.urls'
@@ -79,30 +104,27 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'nexus_helpdesk.wsgi.application'
 
-# ── Helper to strip quotes from environment variables ──────────────────────
-def strip_quotes(value):
-    """Remove leading/trailing single or double quotes from a string."""
-    if isinstance(value, str):
-        value = value.strip()
-        if (value.startswith("'") and value.endswith("'")) or \
-           (value.startswith('"') and value.endswith('"')):
-            return value[1:-1]
-    return value
+# --- DATABASE ---
+# PostgreSQL (recommended for production)
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': os.environ.get('DB_NAME', 'nexusdesk'),
+#         'USER': os.environ.get('DB_USER', 'nexusdesk_user'),
+#         'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+#         'HOST': os.environ.get('DB_HOST', 'localhost'),
+#         'PORT': os.environ.get('DB_PORT', '5432'),
+#     }
+# }
 
-# ── Database ──────────────────────────────────────────────────────────────────
+# SQLite (default for development)
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': strip_quotes(os.environ.get('DB_NAME', 'neondb')),
-        'USER': strip_quotes(os.environ.get('DB_USER', 'neondb_owner')),
-        'PASSWORD': strip_quotes(os.environ.get('DB_PASSWORD')),
-        'HOST': strip_quotes(os.environ.get('DB_HOST', 'ep-bitter-tooth-awd1rg7u-pooler.c-12.us-east-1.aws.neon.tech')),
-        'PORT': strip_quotes(os.environ.get('DB_PORT', '5432')),
-        'OPTIONS': {'sslmode': 'require'},
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'nexusdesk.db',
     }
 }
 
-# ── Password validation ──────────────────────────────────────────────────────
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -115,11 +137,9 @@ TIME_ZONE = 'Africa/Harare'
 USE_I18N = True
 USE_TZ = True
 
-# ── Static files (Whitenoise) ──────────────────────────────────────────────
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -131,10 +151,13 @@ LOGIN_URL = '/accounts/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 
+# Email (configure for production)
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
+# Session
 SESSION_COOKIE_AGE = 28800  # 8 hours
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
+# VoIP Settings
 VOIP_DEFAULT_EXTENSION_LENGTH = 4
-VOIP_CALL_TIMEOUT_MINUTES = 60
+VOIP_CALL_TIMEOUT_MINUTES = 60  # Auto-close calls after 60 min
