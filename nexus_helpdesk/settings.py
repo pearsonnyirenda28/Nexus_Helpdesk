@@ -4,6 +4,7 @@ Django Settings
 """
 
 import os
+import dj_database_url
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -13,7 +14,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'beitdesk-change-this-in-production-use-env-vars')
 
-DEBUG = True
+# Security feature: dynamically disable DEBUG mode in production environments like Vercel
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('true', '1', 't')
 
 ALLOWED_HOSTS = ['*']
 
@@ -104,25 +106,13 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'nexus_helpdesk.wsgi.application'
 
-# --- DATABASE ---
-# PostgreSQL (recommended for production)
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': os.environ.get('DB_NAME', 'nexusdesk'),
-#         'USER': os.environ.get('DB_USER', 'nexusdesk_user'),
-#         'PASSWORD': os.environ.get('DB_PASSWORD', ''),
-#         'HOST': os.environ.get('DB_HOST', 'localhost'),
-#         'PORT': os.environ.get('DB_PORT', '5432'),
-#     }
-# }
-
-# SQLite (default for development)
+# --- DATABASE CONFIGURATION ---
+# Reads DATABASE_URL string on cloud platforms; falls back to local SQLite on your PC
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'nexusdesk.db',
-    }
+    'default': dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'nexusdesk.db'}",
+        conn_max_age=600
+    )
 }
 
 AUTH_PASSWORD_VALIDATORS = [
