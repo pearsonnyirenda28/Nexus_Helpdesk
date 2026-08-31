@@ -917,3 +917,445 @@ def api_bulk_action(request):
         return JsonResponse({'ok':True,'count':count,'action':action})
     except Exception as e:
         return JsonResponse({'ok':False,'error':str(e)})
+
+
+# ── Knowledge Base ────────────────────────────────────────────────────────────
+
+@login_required
+def kb_list(request):
+    articles = KBArticle.objects.filter(is_published=True).select_related('category','author')
+    search   = request.GET.get('search','')
+    category = request.GET.get('category','')
+    if search:
+        articles = articles.filter(
+            Q(title__icontains=search)|Q(content__icontains=search)|
+            Q(summary__icontains=search)|Q(tags__icontains=search))
+    if category:
+        articles = articles.filter(category_id=category)
+    categories = Category.objects.all()
+    return render(request,'helpdesk/kb_list.html',{
+        'articles':articles,'search':search,'category':category,'categories':categories,
+        'total':articles.count()})
+
+@login_required
+def kb_detail(request, pk):
+    article = get_object_or_404(KBArticle, pk=pk, is_published=True)
+    article.views += 1; article.save(update_fields=['views'])
+    if request.method == 'POST':
+        if request.POST.get('feedback') == 'helpful':
+            article.helpful += 1
+        else:
+            article.not_helpful += 1
+        article.save(update_fields=['helpful','not_helpful'])
+        messages.success(request,'Thanks for your feedback!')
+        return redirect('kb_detail', pk=pk)
+    related = KBArticle.objects.filter(
+        is_published=True, category=article.category
+    ).exclude(pk=pk)[:4]
+    return render(request,'helpdesk/kb_detail.html',{'article':article,'related':related})
+
+@login_required
+def kb_create(request):
+    if not request.user.is_staff:
+        messages.error(request,'Only IT staff can create KB articles.')
+        return redirect('kb_list')
+    if request.method == 'POST':
+        title   = request.POST.get('title','').strip()
+        content = request.POST.get('content','').strip()
+        if not title or not content:
+            messages.error(request,'Title and content are required.')
+        else:
+            article = KBArticle.objects.create(
+                title=title, summary=request.POST.get('summary','').strip(),
+                content=content, tags=request.POST.get('tags','').strip(),
+                category_id=request.POST.get('category') or None,
+                is_published=request.POST.get('is_published')=='on',
+                author=request.user)
+            log_action(request,AuditLog.ACTION_CREATE,'KBArticle',
+                       article.pk,article.title,notes='KB article created')
+            messages.success(request,f'Article "{title}" published.')
+            return redirect('kb_detail', pk=article.pk)
+    return render(request,'helpdesk/kb_form.html',{
+        'categories':Category.objects.all(),'page_title':'New KB Article'})
+
+@login_required
+def kb_edit(request, pk):
+    article = get_object_or_404(KBArticle, pk=pk)
+    if not request.user.is_staff:
+        messages.error(request,'Only IT staff can edit KB articles.')
+        return redirect('kb_detail', pk=pk)
+    if request.method == 'POST':
+        article.title   = request.POST.get('title','').strip()
+        article.summary = request.POST.get('summary','').strip()
+        article.content = request.POST.get('content','').strip()
+        article.tags    = request.POST.get('tags','').strip()
+        article.category_id = request.POST.get('category') or None
+        article.is_published = request.POST.get('is_published')=='on'
+        article.save()
+        log_action(request,AuditLog.ACTION_UPDATE,'KBArticle',
+                   article.pk,article.title,notes='KB article updated')
+        messages.success(request,'Article updated.')
+        return redirect('kb_detail', pk=pk)
+    return render(request,'helpdesk/kb_form.html',{
+        'article':article,'categories':Category.objects.all(),
+        'page_title':f'Edit — {article.title}'})
+
+
+# ── Asset Registry ────────────────────────────────────────────────────────────
+
+@login_required
+def asset_list(request):
+    if not request.user.is_staff:
+        messages.error(request,'Asset registry is for IT staff only.')
+        return redirect('dashboard')
+    assets = Asset.objects.select_related('assigned_to_user','created_by').all()
+    search  = request.GET.get('search','')
+    atype   = request.GET.get('type','')
+    status  = request.GET.get('status','')
+    dept    = request.GET.get('department','')
+    if search:
+        assets = assets.filter(
+            Q(asset_tag__icontains=search)|Q(name__icontains=search)|
+            Q(serial_number__icontains=search)|Q(location__icontains=search)|
+            Q(assigned_to_name__icontains=search))
+    if atype:  assets = assets.filter(asset_type=atype)
+    if status: assets = assets.filter(status=status)
+    if dept:   assets = assets.filter(department__icontains=dept)
+    paginator = Paginator(assets, 25)
+    page      = request.GET.get('page',1)
+    return render(request,'helpdesk/asset_list.html',{
+        'assets':paginator.get_page(page),
+        'total':assets.count(),
+        'filters':{'search':search,'type':atype,'status':status,'department':dept},
+        'type_choices':Asset.TYPE_CHOICES,
+        'status_choices':Asset.STATUS_CHOICES})
+
+@login_required
+def asset_detail(request, pk):
+    if not request.user.is_staff:
+        return redirect('dashboard')
+    asset = get_object_or_404(Asset, pk=pk)
+    if request.method == 'POST' and request.user.is_superuser:
+        action = request.POST.get('action')
+        if action == 'delete':
+            name = str(asset)
+            asset.delete()
+            log_action(request,AuditLog.ACTION_DELETE,'Asset',pk,name)
+            messages.success(request,'Asset deleted.')
+            return redirect('asset_list')
+    return render(request,'helpdesk/asset_detail.html',{'asset':asset})
+
+@login_required
+def asset_create(request):
+    if not request.user.is_staff:
+        return redirect('dashboard')
+    if request.method == 'POST':
+        tag = request.POST.get('asset_tag','').strip()
+        if Asset.objects.filter(asset_tag=tag).exists():
+            messages.error(request,f'Asset tag "{tag}" already exists.')
+        elif not tag or not request.POST.get('name','').strip():
+            messages.error(request,'Asset tag and name are required.')
+        else:
+            asset = Asset.objects.create(
+                asset_tag=tag, name=request.POST.get('name','').strip(),
+                asset_type=request.POST.get('asset_type','OTHER'),
+                status=request.POST.get('status','ACTIVE'),
+                serial_number=request.POST.get('serial_number','').strip(),
+                manufacturer=request.POST.get('manufacturer','').strip(),
+                model=request.POST.get('model','').strip(),
+                department=request.POST.get('department','').strip(),
+                section=request.POST.get('section','').strip(),
+                location=request.POST.get('location','').strip(),
+                assigned_to_name=request.POST.get('assigned_to_name','').strip(),
+                notes=request.POST.get('notes','').strip(),
+                purchase_date=request.POST.get('purchase_date') or None,
+                warranty_expiry=request.POST.get('warranty_expiry') or None,
+                created_by=request.user)
+            log_action(request,AuditLog.ACTION_CREATE,'Asset',
+                       asset.pk,str(asset),notes='Asset registered')
+            messages.success(request,f'Asset {tag} registered.')
+            return redirect('asset_detail', pk=asset.pk)
+    return render(request,'helpdesk/asset_form.html',{
+        'type_choices':Asset.TYPE_CHOICES,
+        'status_choices':Asset.STATUS_CHOICES,
+        'page_title':'Register New Asset'})
+
+@login_required
+def asset_edit(request, pk):
+    if not request.user.is_staff:
+        return redirect('dashboard')
+    asset = get_object_or_404(Asset, pk=pk)
+    if request.method == 'POST':
+        asset.name=request.POST.get('name',asset.name).strip()
+        asset.asset_type=request.POST.get('asset_type',asset.asset_type)
+        asset.status=request.POST.get('status',asset.status)
+        asset.serial_number=request.POST.get('serial_number','').strip()
+        asset.manufacturer=request.POST.get('manufacturer','').strip()
+        asset.model=request.POST.get('model','').strip()
+        asset.department=request.POST.get('department','').strip()
+        asset.section=request.POST.get('section','').strip()
+        asset.location=request.POST.get('location','').strip()
+        asset.assigned_to_name=request.POST.get('assigned_to_name','').strip()
+        asset.notes=request.POST.get('notes','').strip()
+        asset.purchase_date=request.POST.get('purchase_date') or None
+        asset.warranty_expiry=request.POST.get('warranty_expiry') or None
+        asset.save()
+        log_action(request,AuditLog.ACTION_UPDATE,'Asset',
+                   asset.pk,str(asset),notes='Asset updated')
+        messages.success(request,'Asset updated.')
+        return redirect('asset_detail', pk=pk)
+    return render(request,'helpdesk/asset_form.html',{
+        'asset':asset,'type_choices':Asset.TYPE_CHOICES,
+        'status_choices':Asset.STATUS_CHOICES,'page_title':f'Edit {asset.asset_tag}'})
+
+
+# ── Database Backup / Restore / Delete ────────────────────────────────────────
+
+@login_required
+def db_backup(request):
+    if not request.user.is_staff:
+        messages.error(request,'Only IT staff can manage backups.')
+        return redirect('dashboard')
+
+    from helpdesk.models import DatabaseBackup
+    backups = DatabaseBackup.objects.all().select_related('performed_by')
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'create':
+            import os, subprocess
+            from django.conf import settings
+            db_cfg  = settings.DATABASES.get('default',{})
+            db_name = db_cfg.get('NAME','beitdesk')
+            db_user = db_cfg.get('USER','beitdesk_user')
+            db_host = db_cfg.get('HOST','localhost')
+            db_port = db_cfg.get('PORT','5432')
+
+            ts       = timezone.now().strftime('%Y%m%d_%H%M%S')
+            filename = f'beitdesk_backup_{ts}.sql'
+            backup_dir = os.path.join(settings.BASE_DIR, 'backups')
+            os.makedirs(backup_dir, exist_ok=True)
+            filepath = os.path.join(backup_dir, filename)
+
+            note = request.POST.get('note','').strip()
+
+            # For SQLite (dev), just copy the db file
+            if 'sqlite' in db_cfg.get('ENGINE',''):
+                import shutil
+                src = db_cfg.get('NAME','')
+                if os.path.exists(src):
+                    shutil.copy2(src, filepath.replace('.sql','.sqlite3'))
+                    filepath = filepath.replace('.sql','.sqlite3')
+                    filename = filename.replace('.sql','.sqlite3')
+                    file_size = os.path.getsize(filepath)
+                    status = 'OK'
+                else:
+                    status = 'FAIL'; file_size = 0
+            else:
+                # PostgreSQL: use pg_dump
+                env = os.environ.copy()
+                env['PGPASSWORD'] = db_cfg.get('PASSWORD','')
+                cmd = ['pg_dump','-h',db_host,'-p',str(db_port),
+                       '-U',db_user,'-F','c','-f',filepath, db_name]
+                try:
+                    subprocess.run(cmd, env=env, check=True,
+                                   capture_output=True, timeout=120)
+                    file_size = os.path.getsize(filepath)
+                    status = 'OK'
+                except Exception as e:
+                    file_size = 0; status = 'FAIL'
+                    note = f'{note}\nError: {str(e)}'
+
+            backup = DatabaseBackup.objects.create(
+                filename=filename, file_path=filepath,
+                file_size=file_size, action='CREATE', status=status,
+                db_name=db_name, note=note, performed_by=request.user)
+            log_action(request,AuditLog.ACTION_CREATE,'DatabaseBackup',
+                       backup.pk,filename,notes=f'DB backup {status}')
+            if status=='OK':
+                messages.success(request,f'Backup created: {filename} ({backup.file_size_display})')
+            else:
+                messages.error(request,f'Backup failed. Check logs.')
+
+        elif action == 'delete' and request.user.is_superuser:
+            backup_id = request.POST.get('backup_id')
+            try:
+                import os
+                backup = DatabaseBackup.objects.get(pk=backup_id)
+                name   = backup.filename
+                # Delete file
+                if backup.file_path and os.path.exists(backup.file_path):
+                    os.remove(backup.file_path)
+                backup.delete()
+                log_action(request,AuditLog.ACTION_DELETE,'DatabaseBackup',
+                           backup_id,name,notes='Backup file deleted')
+                messages.success(request,f'Backup "{name}" deleted.')
+            except DatabaseBackup.DoesNotExist:
+                messages.error(request,'Backup not found.')
+
+        elif action == 'restore' and request.user.is_superuser:
+            backup_id = request.POST.get('backup_id')
+            try:
+                import os, subprocess
+                from django.conf import settings
+                backup  = DatabaseBackup.objects.get(pk=backup_id)
+                db_cfg  = settings.DATABASES.get('default',{})
+                db_name = db_cfg.get('NAME','beitdesk')
+                db_user = db_cfg.get('USER','beitdesk_user')
+                db_host = db_cfg.get('HOST','localhost')
+                db_port = db_cfg.get('PORT','5432')
+
+                if 'sqlite' in db_cfg.get('ENGINE',''):
+                    import shutil
+                    if os.path.exists(backup.file_path):
+                        shutil.copy2(backup.file_path, db_cfg.get('NAME',''))
+                        status = 'OK'
+                    else:
+                        status = 'FAIL'
+                else:
+                    env = os.environ.copy()
+                    env['PGPASSWORD'] = db_cfg.get('PASSWORD','')
+                    cmd = ['pg_restore','-h',db_host,'-p',str(db_port),
+                           '-U',db_user,'-d',db_name,'--clean','--if-exists',
+                           backup.file_path]
+                    try:
+                        subprocess.run(cmd,env=env,check=True,
+                                       capture_output=True,timeout=300)
+                        status = 'OK'
+                    except Exception as e:
+                        status = 'FAIL'
+
+                DatabaseBackup.objects.create(
+                    filename=backup.filename, file_path=backup.file_path,
+                    file_size=backup.file_size, action='RESTORE', status=status,
+                    db_name=db_name, performed_by=request.user,
+                    note=f'Restored from backup {backup.pk}')
+                log_action(request,AuditLog.ACTION_UPDATE,'DatabaseBackup',
+                           backup.pk,backup.filename,
+                           notes=f'DB restore attempt: {status}')
+                if status=='OK':
+                    messages.success(request,f'Database restored from {backup.filename}.')
+                else:
+                    messages.error(request,'Restore failed. Check that pg_restore is available.')
+            except DatabaseBackup.DoesNotExist:
+                messages.error(request,'Backup not found.')
+
+        return redirect('db_backup')
+
+    import os
+    from django.conf import settings
+    backup_dir = os.path.join(settings.BASE_DIR,'backups')
+    os.makedirs(backup_dir, exist_ok=True)
+
+    return render(request,'helpdesk/db_backup.html',{
+        'backups': backups,
+        'total':   backups.count(),
+        'total_size': sum(b.file_size for b in backups),
+    })
+
+
+# ── Per-User Activity Audit ───────────────────────────────────────────────────
+
+@login_required
+def user_activity(request, user_id):
+    """Full activity audit for a specific user — admin/staff only or own."""
+    from django.contrib.auth.models import User as AuthUser
+    target = get_object_or_404(AuthUser, pk=user_id)
+
+    # Permission: admin sees all, staff sees non-admin, users see own only
+    if not request.user.is_staff and target != request.user:
+        messages.error(request,'Access denied.')
+        return redirect('dashboard')
+    if request.user.is_staff and not request.user.is_superuser and target.is_superuser:
+        messages.error(request,'Cannot view admin activity.')
+        return redirect('user_list')
+
+    logs = AuditLog.objects.filter(user=target).order_by('-timestamp')
+
+    # Filters
+    action = request.GET.get('action','')
+    search = request.GET.get('search','')
+    date_from = request.GET.get('date_from','')
+    date_to   = request.GET.get('date_to','')
+
+    if action: logs = logs.filter(action=action)
+    if search: logs = logs.filter(
+        Q(object_repr__icontains=search)|Q(notes__icontains=search)|
+        Q(model_name__icontains=search))
+    if date_from: logs = logs.filter(timestamp__date__gte=date_from)
+    if date_to:   logs = logs.filter(timestamp__date__lte=date_to)
+
+    paginator = Paginator(logs, 30)
+    page      = request.GET.get('page',1)
+
+    # Summary stats
+    from django.db.models import Count
+    action_summary = list(
+        AuditLog.objects.filter(user=target)
+        .values('action').annotate(count=Count('id'))
+        .order_by('-count')
+    )
+
+    return render(request,'helpdesk/user_activity.html',{
+        'target':         target,
+        'logs':           paginator.get_page(page),
+        'total':          logs.count(),
+        'action_summary': action_summary,
+        'action_choices': AuditLog.ACTION_CHOICES,
+        'filters':{'action':action,'search':search,
+                   'date_from':date_from,'date_to':date_to},
+    })
+
+
+# ── CSV Export ────────────────────────────────────────────────────────────────
+
+@login_required
+def export_tickets_csv(request):
+    """Export ticket list as CSV."""
+    import csv
+    from django.http import StreamingHttpResponse
+
+    if request.user.is_staff:
+        tickets = Ticket.objects.select_related('requester','assigned_to','category').all()
+    else:
+        tickets = Ticket.objects.filter(
+            Q(requester=request.user)|Q(assigned_to=request.user))
+
+    # Apply same filters as ticket_list
+    status   = request.GET.get('status','')
+    priority = request.GET.get('priority','')
+    if status:   tickets = tickets.filter(status=status)
+    if priority: tickets = tickets.filter(priority=priority)
+
+    log_action(request,AuditLog.ACTION_VIEW,'Ticket','',
+               f'CSV export {tickets.count()} tickets')
+
+    def rows():
+        yield ['Ticket ID','Title','Status','Priority','Category','Source',
+               'Requester','Department','Section','Assigned To',
+               'Created','Resolved','Resolution (min)','SLA Breach']
+        for t in tickets:
+            yield [
+                t.ticket_id, t.title, t.status, t.priority,
+                t.category.name if t.category else '',
+                t.source,
+                t.requester_name or (t.requester.username if t.requester else ''),
+                t.requester_department, t.requester_section,
+                t.assigned_to.username if t.assigned_to else '',
+                t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else '',
+                t.resolved_at.strftime('%Y-%m-%d %H:%M') if t.resolved_at else '',
+                t.resolution_time_minutes or '',
+                'Yes' if t.sla_breach else 'No',
+            ]
+
+    class Echo:
+        def write(self, value): return value
+
+    writer = csv.writer(Echo())
+    response = StreamingHttpResponse(
+        (writer.writerow(row) for row in rows()),
+        content_type='text/csv')
+    ts = timezone.now().strftime('%Y%m%d_%H%M')
+    response['Content-Disposition'] = f'attachment; filename="beitdesk_tickets_{ts}.csv"'
+    return response

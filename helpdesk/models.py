@@ -423,3 +423,187 @@ class PendingNotification(models.Model):
         ordering = ["created_at"]
     def __str__(self):
         return f"Notification for {self.user.username}"
+
+
+# ── Knowledge Base ────────────────────────────────────────────────────────────
+
+class KBArticle(models.Model):
+    title        = models.CharField(max_length=200)
+    slug         = models.SlugField(max_length=220, unique=True, blank=True)
+    summary      = models.CharField(max_length=300, blank=True)
+    content      = models.TextField()
+    category     = models.ForeignKey('Category', on_delete=models.SET_NULL,
+                                     null=True, blank=True, related_name='kb_articles')
+    tags         = models.CharField(max_length=200, blank=True,
+                                    help_text='Comma-separated tags')
+    views        = models.PositiveIntegerField(default=0)
+    helpful      = models.PositiveIntegerField(default=0)
+    not_helpful  = models.PositiveIntegerField(default=0)
+    author       = models.ForeignKey(User, on_delete=models.SET_NULL,
+                                     null=True, related_name='kb_articles')
+    is_published = models.BooleanField(default=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
+    updated_at   = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-views', '-created_at']
+        verbose_name = 'KB Article'
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            from django.utils.text import slugify
+            self.slug = slugify(self.title)[:220]
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.title
+
+
+# ── IT Asset Registry ─────────────────────────────────────────────────────────
+
+class Asset(models.Model):
+    TYPE_CHOICES = [('DESKTOP','Desktop PC'),('LAPTOP','Laptop'),
+                    ('PRINTER','Printer'),('PHONE','Phone/VoIP'),
+                    ('NETWORK','Network Equipment'),('SERVER','Server'),
+                    ('MONITOR','Monitor'),('OTHER','Other')]
+    STATUS_CHOICES = [('ACTIVE','Active'),('REPAIR','Under Repair'),
+                      ('RETIRED','Retired'),('MISSING','Missing')]
+
+    asset_tag        = models.CharField(max_length=30, unique=True)
+    name             = models.CharField(max_length=150)
+    asset_type       = models.CharField(max_length=20, choices=TYPE_CHOICES, default='DESKTOP')
+    status           = models.CharField(max_length=10, choices=STATUS_CHOICES, default='ACTIVE')
+    serial_number    = models.CharField(max_length=100, blank=True)
+    manufacturer     = models.CharField(max_length=100, blank=True)
+    model            = models.CharField(max_length=100, blank=True)
+    department       = models.CharField(max_length=100, blank=True)
+    section          = models.CharField(max_length=100, blank=True)
+    location         = models.CharField(max_length=150, blank=True)
+    assigned_to_user = models.ForeignKey(User, on_delete=models.SET_NULL,
+                                          null=True, blank=True,
+                                          related_name='assigned_assets')
+    assigned_to_name = models.CharField(max_length=150, blank=True)
+    purchase_date    = models.DateField(null=True, blank=True)
+    purchase_cost    = models.DecimalField(max_digits=10, decimal_places=2,
+                                           null=True, blank=True)
+    warranty_expiry  = models.DateField(null=True, blank=True)
+    notes            = models.TextField(blank=True)
+    created_by       = models.ForeignKey(User, on_delete=models.SET_NULL,
+                                          null=True, related_name='created_assets')
+    created_at       = models.DateTimeField(auto_now_add=True)
+    updated_at       = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['asset_tag']
+        verbose_name = 'IT Asset'
+
+    def __str__(self):
+        return f'{self.asset_tag} — {self.name}'
+
+    @property
+    def is_warranty_expired(self):
+        from django.utils import timezone
+        return bool(self.warranty_expiry and timezone.now().date() > self.warranty_expiry)
+
+
+# ── Ticket Templates ──────────────────────────────────────────────────────────
+
+class TicketTemplate(models.Model):
+    name                 = models.CharField(max_length=100)
+    description          = models.CharField(max_length=200, blank=True)
+    icon                 = models.CharField(max_length=60, default='fas fa-ticket')
+    title_template       = models.CharField(max_length=255)
+    description_template = models.TextField()
+    category             = models.ForeignKey('Category', on_delete=models.SET_NULL,
+                                              null=True, blank=True)
+    priority             = models.CharField(max_length=10, default='MEDIUM')
+    is_active            = models.BooleanField(default=True)
+    use_count            = models.PositiveIntegerField(default=0)
+    created_by           = models.ForeignKey(User, on_delete=models.SET_NULL,
+                                              null=True, related_name='ticket_templates')
+    created_at           = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-use_count', 'name']
+        verbose_name = 'Ticket Template'
+
+    def __str__(self):
+        return self.name
+
+
+# ── Recurring Tickets ─────────────────────────────────────────────────────────
+
+class RecurringTicket(models.Model):
+    FREQ_CHOICES = [('DAILY','Daily'),('WEEKLY','Weekly'),('MONTHLY','Monthly')]
+
+    name                 = models.CharField(max_length=100)
+    frequency            = models.CharField(max_length=10, choices=FREQ_CHOICES, default='MONTHLY')
+    day_of_week          = models.PositiveSmallIntegerField(null=True, blank=True,
+                                                            help_text='0=Mon…6=Sun')
+    day_of_month         = models.PositiveSmallIntegerField(null=True, blank=True,
+                                                             help_text='1-28')
+    title_template       = models.CharField(max_length=255)
+    description_template = models.TextField()
+    category             = models.ForeignKey('Category', on_delete=models.SET_NULL,
+                                              null=True, blank=True)
+    priority             = models.CharField(max_length=10, default='MEDIUM')
+    assigned_to          = models.ForeignKey(User, on_delete=models.SET_NULL,
+                                              null=True, blank=True,
+                                              related_name='recurring_assignments')
+    is_active            = models.BooleanField(default=True)
+    last_created_at      = models.DateTimeField(null=True, blank=True)
+    next_due_at          = models.DateTimeField(null=True, blank=True)
+    created_by           = models.ForeignKey(User, on_delete=models.SET_NULL,
+                                              null=True, related_name='recurring_tickets')
+    created_at           = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Recurring Ticket'
+
+    def __str__(self):
+        return f'{self.name} ({self.frequency})'
+
+
+# ── Database Backup Registry ──────────────────────────────────────────────────
+
+class DatabaseBackup(models.Model):
+    """Tracks database backups created, restored, or deleted by staff."""
+    ACTION_CREATE  = 'CREATE'
+    ACTION_RESTORE = 'RESTORE'
+    ACTION_DELETE  = 'DELETE'
+    ACTION_CHOICES = [(ACTION_CREATE,'Created'),(ACTION_RESTORE,'Restored'),
+                      (ACTION_DELETE,'Deleted')]
+
+    STATUS_OK    = 'OK'
+    STATUS_FAIL  = 'FAIL'
+    STATUS_CHOICES = [(STATUS_OK,'Success'),(STATUS_FAIL,'Failed')]
+
+    filename    = models.CharField(max_length=255)
+    file_path   = models.CharField(max_length=500, blank=True)
+    file_size   = models.PositiveIntegerField(default=0,
+                                              help_text='Size in bytes')
+    action      = models.CharField(max_length=10, choices=ACTION_CHOICES)
+    status      = models.CharField(max_length=6, choices=STATUS_CHOICES, default=STATUS_OK)
+    db_name     = models.CharField(max_length=100, blank=True,
+                                   help_text='Database that was backed up')
+    note        = models.TextField(blank=True)
+    performed_by = models.ForeignKey(User, on_delete=models.SET_NULL,
+                                     null=True, related_name='db_backups')
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Database Backup'
+
+    def __str__(self):
+        return f'{self.action} — {self.filename}'
+
+    @property
+    def file_size_display(self):
+        if self.file_size < 1024:
+            return f'{self.file_size} B'
+        elif self.file_size < 1024**2:
+            return f'{self.file_size/1024:.1f} KB'
+        else:
+            return f'{self.file_size/1024**2:.1f} MB'
