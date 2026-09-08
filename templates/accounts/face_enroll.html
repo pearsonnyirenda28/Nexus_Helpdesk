@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BeitDesk — Set Up Face Recognition</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://npmjs.org/font-awesome/css/font-awesome.min.css" onerror="this.remove()">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root{--bg:#0d1117;--card:#1c2128;--border:#30363d;--accent:#1a6b30;
               --accent-h:#2d8a45;--gold:#c9a227;--text:#e6edf3;--muted:#8b949e;
@@ -40,7 +40,7 @@
         @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(201,162,39,.4);}
                          50%{box-shadow:0 0 0 10px rgba(201,162,39,0);}}
         .cam-status{position:absolute;bottom:10px;left:0;right:0;text-align:center;
-                    font-size:12px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8);}
+                    font-size:12px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8);padding:0 8px;}
 
         /* Capture progress */
         .captures{display:flex;gap:8px;justify-content:center;margin-bottom:16px;}
@@ -94,11 +94,12 @@
     </style>
 </head>
 <body>
+{% csrf_token %}
 <div class="container">
     <a href="{% url 'mfa_settings' %}" class="back-link">
         <i class="fas fa-arrow-left"></i> Back to MFA Settings
     </a>
-    <h1><i class="fas fa-face-viewfinder" style="color:var(--gold);margin-right:8px;"></i>
+    <h1><i class="fas fa-id-card" style="color:var(--gold);margin-right:8px;"></i>
         Set Up Face Recognition</h1>
     <p class="sub">Enrolling: <strong>{{ target.get_full_name|default:target.username }}</strong>
         {% if not is_self %}<span style="color:var(--gold);">(Admin enrollment)</span>{% endif %}
@@ -197,47 +198,48 @@
     </div>
 </div>
 
-<script src="/static/faceapi/face-api.min.js"></script>
+<!-- Load face-api.js from CDN -->
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
 <script>
-const MODEL_URL  = '/static/faceapi/weights';
-const TOTP_URI   = '{{ totp_uri|default:""|escapejs }}';
-const CSRF       = () => {
+// CDN path for face detection model weights
+ const MODEL_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
+
+const CSRF = () => {
     const el = document.querySelector('[name=csrfmiddlewaretoken]');
     return el ? el.value : '';
 };
 
-let stream=null, modelsLoaded=false;
-let embeddings=[], captureCount=0, capturing=false, scanTimer=null;
+let stream = null;
+let modelsLoaded = false;
+let embeddings = [];
+let captureCount = 0;
+let capturing = false;
+let scanTimer = null;
+
 const TOTAL_CAPTURES = 5;
 const PROMPTS = [
     'Look straight at the camera',
     'Tilt your head slightly left',
     'Tilt your head slightly right',
     'Look straight — different expression',
-    'Final capture — hold still',
+    'Final capture — hold still'
 ];
 
 const video  = document.getElementById('videoEl');
 const ring   = document.getElementById('faceRing');
 const status = document.getElementById('camStatus');
 
-// QR served as server-side PNG
-                }
-            });
-    });
-}
-
-// ── Camera / Face Models ──────────────────────────────────────────────────────
 async function checkCameraAvailable() {
-    // Camera requires HTTPS (except localhost)
     const isSecure = location.protocol === 'https:' ||
                      location.hostname === 'localhost' ||
                      location.hostname === '127.0.0.1';
     if (!isSecure) {
         status.textContent = '⚠ Camera requires HTTPS. Run: python run_https.py';
-        document.getElementById('startBtn').disabled = true;
-        document.getElementById('startBtn').title = 'Start HTTPS server first';
-        document.getElementById('startBtn').innerHTML = '<i class="fas fa-lock"></i> HTTPS Required';
+        const startBtn = document.getElementById('startBtn');
+        startBtn.disabled = true;
+        startBtn.title = 'Start HTTPS server first';
+        startBtn.innerHTML = '<i class="fas fa-lock"></i> HTTPS Required';
         return false;
     }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -252,9 +254,10 @@ async function startCamera() {
     const ok = await checkCameraAvailable();
     if (!ok) return;
 
-    document.getElementById('startBtn').disabled = true;
-    document.getElementById('startBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
-    status.textContent = 'Loading face detection models (~6MB, one-time download)...';
+    const startBtn = document.getElementById('startBtn');
+    startBtn.disabled = true;
+    startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+    status.textContent = 'Loading face detection models from CDN (~6MB)...';
 
     if (!modelsLoaded) {
         try {
@@ -266,20 +269,21 @@ async function startCamera() {
             modelsLoaded = true;
             status.textContent = 'Models loaded. Starting camera...';
         } catch(e) {
-            status.textContent = '✗ Could not load face models. Check internet connection and try again.';
-            document.getElementById('startBtn').disabled = false;
-            document.getElementById('startBtn').innerHTML = '<i class="fas fa-rotate"></i> Retry';
+            status.textContent = '✗ Could not load face models from CDN. Check internet connection and try again.';
+            startBtn.disabled = false;
+            startBtn.innerHTML = '<i class="fas fa-rotate"></i> Retry';
             return;
         }
     }
 
     try {
-        stream = await navigator.mediaDevices.getUserMedia(
-            {video:{facingMode:'user', width:{ideal:640}, height:{ideal:480}}});
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+        });
         video.srcObject = stream;
         await new Promise(r => { video.onloadedmetadata = r; });
         ring.className = 'face-ring active';
-        document.getElementById('startBtn').style.display = 'none';
+        startBtn.style.display = 'none';
         document.getElementById('dot1').className = 'cap-dot current';
         status.textContent = PROMPTS[0];
         scanTimer = setInterval(captureFrame, 1800);
@@ -293,30 +297,34 @@ async function startCamera() {
             msg += e.message;
         }
         status.textContent = msg;
-        document.getElementById('startBtn').disabled = false;
-        document.getElementById('startBtn').innerHTML = '<i class="fas fa-camera"></i> Start Camera';
+        startBtn.disabled = false;
+        startBtn.innerHTML = '<i class="fas fa-camera"></i> Start Camera';
     }
 }
-
-// Check HTTPS on page load and show warning if needed
-window.addEventListener('load', function() {
-    checkCameraAvailable();
-});
 
 async function captureFrame() {
     if (capturing || captureCount >= TOTAL_CAPTURES) return;
     capturing = true;
+
     const det = await faceapi
-        .detectSingleFace(video, new faceapi.SsdMobilenetv1Options({minConfidence:0.5}))
-        .withFaceLandmarks().withFaceDescriptor();
+        .detectSingleFace(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
     capturing = false;
-    if (!det) { status.textContent = 'No face detected — move closer'; return; }
+    if (!det) { 
+        status.textContent = 'No face detected — move closer'; 
+        return; 
+    }
+
     embeddings.push(Array.from(det.descriptor));
-    const dot = document.getElementById('dot'+(captureCount+1));
-    dot.className = 'cap-dot filled'; dot.innerHTML = '✓';
+    const dot = document.getElementById('dot' + (captureCount + 1));
+    dot.className = 'cap-dot filled'; 
+    dot.innerHTML = '✓';
     captureCount++;
+
     if (captureCount < TOTAL_CAPTURES) {
-        document.getElementById('dot'+(captureCount+1)).className = 'cap-dot current';
+        document.getElementById('dot' + (captureCount + 1)).className = 'cap-dot current';
         status.textContent = PROMPTS[captureCount];
     } else {
         clearInterval(scanTimer);
@@ -332,14 +340,15 @@ async function submitEnrollment() {
     res.innerHTML = '<p style="font-size:12px;color:var(--muted);text-align:center;margin-top:10px;"><i class="fas fa-spinner fa-spin"></i> Saving face data...</p>';
     try {
         const r = await fetch('{% url "face_enroll" %}', {
-            method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF()},
-            body: JSON.stringify({embeddings})});
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF() },
+            body: JSON.stringify({ embeddings })
+        });
         const d = await r.json();
         if (d.ok) {
             res.innerHTML = `<div class="alert alert-success" style="margin-top:10px;"><i class="fas fa-check-circle"></i> ${d.message}</div>`;
             document.getElementById('badge1').className = 'step-badge done';
             document.getElementById('badge1').textContent = '✓';
-            // Unlock TOTP step
             document.getElementById('totpCard').style.opacity = '1';
             document.getElementById('totpCard').style.pointerEvents = 'auto';
             document.getElementById('badge2').className = 'step-badge';
@@ -352,49 +361,61 @@ async function submitEnrollment() {
 }
 
 function retakeCaptures() {
-    embeddings=[]; captureCount=0; capturing=false;
-    document.querySelectorAll('.cap-dot').forEach((d,i)=>{d.className='cap-dot';d.textContent=i+1;});
-    document.getElementById('dot1').className='cap-dot current';
-    ring.className='face-ring active';
-    document.getElementById('retakeBtn').style.display='none';
-    document.getElementById('faceResult').innerHTML='';
+    embeddings = []; 
+    captureCount = 0; 
+    capturing = false;
+    document.querySelectorAll('.cap-dot').forEach((d, i) => {
+        d.className = 'cap-dot';
+        d.textContent = i + 1;
+    });
+    document.getElementById('dot1').className = 'cap-dot current';
+    ring.className = 'face-ring active';
+    document.getElementById('retakeBtn').style.display = 'none';
+    document.getElementById('faceResult').innerHTML = '';
     status.textContent = PROMPTS[0];
     scanTimer = setInterval(captureFrame, 1500);
 }
 
 async function confirmTotp() {
-    const code = document.getElementById('totpCode').value.trim().replace(/\s/g,'');
+    const code = document.getElementById('totpCode').value.trim().replace(/\s/g, '');
     const res  = document.getElementById('totpResult');
-    if (code.length !== 6) { res.innerHTML='<p style="color:var(--danger);font-size:12px;margin-top:8px;">Enter a 6-digit code.</p>'; return; }
+    if (code.length !== 6) { 
+        res.innerHTML = '<p style="color:var(--danger);font-size:12px;margin-top:8px;">Enter a 6-digit code.</p>'; 
+        return; 
+    }
     try {
         const r = await fetch('{% url "mfa_settings" %}', {
-            method:'POST',
-            headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRFToken':CSRF()},
-            body:`action=setup_totp&totp_code=${encodeURIComponent(code)}`});
-        // Check response by reloading page state
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF() },
+            body: `action=setup_totp&totp_code=${encodeURIComponent(code)}`
+        });
         if (r.ok && r.url.includes('mfa_settings')) {
             showDone(true);
         } else {
-            // Submit form traditionally
             const form = document.createElement('form');
-            form.method='POST'; form.action='{% url "mfa_settings" %}';
-            form.innerHTML=`<input name="csrfmiddlewaretoken" value="${CSRF()}"><input name="action" value="setup_totp"><input name="totp_code" value="${code}">`;
-            document.body.appendChild(form); form.submit();
+            form.method = 'POST'; 
+            form.action = '{% url "mfa_settings" %}';
+            form.innerHTML = `<input type="hidden" name="csrfmiddlewaretoken" value="${CSRF()}"><input type="hidden" name="action" value="setup_totp"><input type="hidden" name="totp_code" value="${code}">`;
+            document.body.appendChild(form); 
+            form.submit();
         }
     } catch(e) {
-        res.innerHTML='<p style="color:var(--danger);font-size:12px;margin-top:8px;">Verification failed. Try again.</p>';
+        res.innerHTML = '<p style="color:var(--danger);font-size:12px;margin-top:8px;">Verification failed. Try again.</p>';
     }
 }
 
 function showDone(totpOk) {
-    document.getElementById('totpCard').style.display='none';
-    document.getElementById('doneCard').style.display='block';
+    document.getElementById('totpCard').style.display = 'none';
+    document.getElementById('doneCard').style.display = 'block';
     if (totpOk) {
-        document.getElementById('totpStatusDot').className='dot dot-green';
-        document.getElementById('totpStatusText').textContent='Active';
+        document.getElementById('totpStatusDot').className = 'dot dot-green';
+        document.getElementById('totpStatusText').textContent = 'Active';
     }
 }
+
+window.addEventListener('load', function() {
+    checkCameraAvailable();
+});
 </script>
-{% csrf_token %}
 </body>
 </html>
