@@ -510,3 +510,4 @@ nexus_helpdesk/
 
 *BeitDesk v1.0 — Municipality of Beitbridge IT Department*  
 *Ambition · Perseverance · Success*
+ 
