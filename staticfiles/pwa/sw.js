@@ -32,10 +32,24 @@ const CACHE_PAGES = [
 // ── Install ───────────────────────────────────────────────────────────────────
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(PRECACHE_ASSETS).catch(err => {
-        console.warn('[BeitDesk SW] Pre-cache partial failure:', err);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      console.log('[BeitDesk SW] Pre-caching assets individually...');
+      
+      // Fetch each asset individually so a missing 404 image or manifest doesn't fail entire SW
+      const cachePromises = PRECACHE_ASSETS.map(async (url) => {
+        try {
+          const response = await fetch(url);
+          if (response.ok) {
+            await cache.put(url, response);
+          } else {
+            console.warn(`[BeitDesk SW] Skipped pre-caching ${url}: Status ${response.status}`);
+          }
+        } catch (err) {
+          console.warn(`[BeitDesk SW] Failed to fetch ${url}:`, err);
+        }
       });
+
+      await Promise.allSettled(cachePromises);
     }).then(() => self.skipWaiting())
   );
 });
@@ -56,21 +70,39 @@ self.addEventListener('fetch', event => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Only handle same-origin requests
-  if (url.origin !== location.origin) return;
-
-  // Skip non-GET and API/admin requests (must always be fresh)
+  // Skip non-GET, API, admin, and Vercel SSO auth requests
   if (request.method !== 'GET') return;
+  if (url.href.includes('vercel.com/sso-api')) return;
   if (url.pathname.startsWith('/api/') ||
       url.pathname.startsWith('/dashboard/api/') ||
       url.pathname.startsWith('/admin/')) return;
+
+  // Google Fonts — Cache first, network fallback (allows cross-origin CORS/opaque)
+  if (url.hostname.includes('fonts.gstatic.com') || url.hostname.includes('fonts.googleapis.com')) {
+    event.respondWith(
+      caches.match(request).then(cached => {
+        if (cached) return cached;
+        return fetch(request).then(response => {
+          if (response && (response.status === 200 || response.type === 'opaque')) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(c => c.put(request, clone));
+          }
+          return response;
+        }).catch(() => undefined);
+      })
+    );
+    return;
+  }
+
+  // Skip non-same-origin requests for remaining local logic
+  if (url.origin !== location.origin) return;
 
   // Static assets — Cache first, then network, update cache in background
   if (url.pathname.startsWith('/static/')) {
     event.respondWith(
       caches.match(request).then(cached => {
         const networkFetch = fetch(request).then(response => {
-          if (response.ok) {
+          if (response && response.status === 200 && response.type === 'basic') {
             const clone = response.clone();
             caches.open(CACHE_NAME).then(c => c.put(request, clone));
           }
@@ -82,24 +114,12 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Fonts from Google — Cache first
-  if (url.hostname.includes('fonts.')) {
-    event.respondWith(
-      caches.match(request).then(cached => cached || fetch(request).then(response => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then(c => c.put(request, clone));
-        return response;
-      }))
-    );
-    return;
-  }
-
   // HTML pages — Network first, fallback to cache, then offline page
   event.respondWith(
     fetch(request)
       .then(response => {
-        // Cache successful page responses
-        if (response.ok && response.status === 200) {
+        // Cache successful HTML page responses
+        if (response && response.status === 200 && response.type === 'basic') {
           const clone = response.clone();
           caches.open(CACHE_NAME).then(c => c.put(request, clone));
         }
@@ -108,7 +128,6 @@ self.addEventListener('fetch', event => {
       .catch(() =>
         caches.match(request).then(cached => {
           if (cached) return cached;
-          // Show offline fallback
           return caches.match(OFFLINE_URL);
         })
       )
@@ -123,7 +142,6 @@ self.addEventListener('sync', event => {
 });
 
 async function syncOfflineTickets() {
-  // Placeholder for future offline ticket queue sync
   console.log('[BeitDesk SW] Syncing offline tickets...');
 }
 
