@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BeitDesk — Sign In</title>
     <link rel="icon" type="image/svg+xml" href="{% static 'img/favicon.svg' %}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/fontawesome/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -139,6 +139,29 @@
                     Remember me for 30 days
                 </label>
             </div>
+
+            {% if db_years %}
+            <div style="margin-bottom:14px;">
+                <label class="form-label" style="font-size:11px;color:var(--text-muted);
+                       text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">
+                    <i class="fas fa-database" style="color:var(--gold);margin-right:4px;"></i>
+                    Database Year
+                </label>
+                <select name="db_year" class="form-select"
+                        style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+                               color:var(--text-primary);font-size:13px;border-radius:6px;">
+                    <option value="">&#x2605; Current Year (Default)</option>
+                    {% for yr in db_years %}
+                    <option value="{{ yr.pk }}">
+                        {{ yr.year }} — {{ yr.db_name }}{% if yr.is_current %} (Current){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:4px;">
+                    <i class="fas fa-circle-info"></i> Select a past year to view its records
+                </div>
+            </div>
+            {% endif %}
 
             <button type="submit" class="btn" style="background:var(--accent);">
                 <i class="fas fa-sign-in-alt"></i> Sign In

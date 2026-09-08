@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BeitDesk — Identity Verification</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/fontawesome/css/all.min.css">
+    <style>
+        :root{--bg:#0d1117;--card:#1c2128;--border:#30363d;--accent:#1a6b30;
+              --accent-h:#2d8a45;--gold:#c9a227;--text:#e6edf3;--muted:#8b949e;
+              --danger:#f85149;--success:#3fb950;--warning:#d29922;}
+        *{box-sizing:border-box;margin:0;padding:0;}
+        body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);
+             min-height:100vh;display:flex;align-items:center;justify-content:center;
+             padding:20px;}
+        .container{width:100%;max-width:480px;}
+        .header{text-align:center;margin-bottom:28px;}
+        .logo{width:72px;height:72px;border-radius:16px;margin:0 auto 16px;
+              border:2px solid rgba(201,162,39,.4);}
+        h1{font-size:22px;font-weight:700;margin-bottom:6px;}
+        p.sub{font-size:13px;color:var(--muted);}
+        .card{background:var(--card);border:1px solid var(--border);border-radius:12px;
+              padding:28px;}
+        .tabs{display:flex;gap:4px;background:var(--bg);border-radius:8px;
+              padding:4px;margin-bottom:24px;}
+        .tab{flex:1;padding:8px;border-radius:6px;border:none;background:none;
+             color:var(--muted);font-size:13px;font-weight:500;cursor:pointer;
+             transition:all .2s;}
+        .tab.active{background:var(--card);color:var(--text);
+                    box-shadow:0 1px 4px rgba(0,0,0,.3);}
+        .tab-pane{display:none;}
+        .tab-pane.active{display:block;}
+
+        /* Camera */
+        .cam-wrap{position:relative;width:100%;aspect-ratio:4/3;
+                  background:#000;border-radius:10px;overflow:hidden;margin-bottom:16px;}
+        #videoEl{width:100%;height:100%;object-fit:cover;}
+        .cam-overlay{position:absolute;inset:0;display:flex;align-items:center;
+                     justify-content:center;pointer-events:none;}
+        .face-ring{width:180px;height:180px;border-radius:50%;
+                   border:3px solid rgba(26,107,48,.6);
+                   box-shadow:0 0 0 1px rgba(26,107,48,.2),
+                              inset 0 0 0 1px rgba(26,107,48,.2);}
+        .face-ring.scanning{border-color:var(--gold);
+                             animation:pulse-ring 1.5s ease-in-out infinite;}
+        .face-ring.success{border-color:var(--success);}
+        .face-ring.fail{border-color:var(--danger);}
+        @keyframes pulse-ring{0%,100%{box-shadow:0 0 0 0 rgba(201,162,39,.4);}
+                               50%{box-shadow:0 0 0 12px rgba(201,162,39,0);}}
+        .cam-status{position:absolute;bottom:12px;left:0;right:0;text-align:center;
+                    font-size:12px;font-weight:500;color:#fff;
+                    text-shadow:0 1px 3px rgba(0,0,0,.8);}
+        canvas{display:none;}
+        .confidence-bar{height:6px;background:var(--border);border-radius:3px;
+                        margin:8px 0;overflow:hidden;}
+        .confidence-fill{height:100%;border-radius:3px;transition:width .3s;
+                         background:linear-gradient(90deg,var(--danger),var(--warning),var(--success));}
+        .conf-label{font-size:11px;color:var(--muted);margin-bottom:4px;}
+
+        /* Form */
+        .form-group{margin-bottom:16px;}
+        label{display:block;font-size:12px;color:var(--muted);
+              text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;}
+        input[type=text],input[type=password]{width:100%;padding:10px 14px;
+            background:rgba(255,255,255,.06);border:1px solid var(--border);
+            border-radius:8px;color:var(--text);font-size:14px;outline:none;
+            font-family:'Inter',sans-serif;letter-spacing:3px;text-align:center;
+            font-size:20px;}
+        input:focus{border-color:var(--accent);}
+        .btn{width:100%;padding:12px;border-radius:8px;border:none;
+             font-size:14px;font-weight:600;cursor:pointer;
+             display:flex;align-items:center;justify-content:center;gap:8px;
+             transition:all .2s;}
+        .btn-primary{background:var(--accent);color:#fff;}
+        .btn-primary:hover{background:var(--accent-h);}
+        .btn-secondary{background:rgba(255,255,255,.08);color:var(--text);
+                       border:1px solid var(--border);margin-top:10px;}
+        .btn-secondary:hover{background:rgba(255,255,255,.12);}
+        .alert{padding:12px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;
+               display:flex;align-items:flex-start;gap:10px;}
+        .alert-error{background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.3);
+                     color:var(--danger);}
+        .alert-info{background:rgba(26,107,48,.12);border:1px solid rgba(26,107,48,.3);
+                    color:#7ee787;}
+        .blink-prompt{font-size:13px;color:var(--gold);text-align:center;
+                      margin:8px 0;font-weight:600;min-height:20px;}
+        .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;
+               border-radius:10px;font-size:11px;font-weight:600;}
+        .badge-green{background:rgba(63,185,80,.15);color:var(--success);
+                     border:1px solid rgba(63,185,80,.3);}
+        .badge-muted{background:var(--border);color:var(--muted);}
+        .divider{display:flex;align-items:center;gap:10px;margin:20px 0;
+                 color:var(--muted);font-size:12px;}
+        .divider::before,.divider::after{content:'';flex:1;
+                                         height:1px;background:var(--border);}
+        .footer-links{text-align:center;margin-top:20px;font-size:12px;color:var(--muted);}
+        .footer-links a{color:var(--muted);text-decoration:none;}
+        .footer-links a:hover{color:var(--text);}
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <img src="/static/img/beitbridge_logo.jpg" alt="Beitbridge" class="logo">
+        <h1>Identity Verification</h1>
+        <p class="sub">Welcome back, <strong>{{ user.get_full_name|default:user.username }}</strong>.
+            Please verify your identity to continue.</p>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-error">
+        <i class="fas fa-circle-exclamation" style="flex-shrink:0;margin-top:1px;"></i>
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <!-- Method tabs -->
+        <div class="tabs">
+            {% if face_enabled %}
+            <button class="tab active" onclick="switchTab('face',this)">
+                <i class="fas fa-face-viewfinder"></i> Face
+            </button>
+            {% endif %}
+            {% if totp_enabled %}
+            <button class="tab {% if not face_enabled %}active{% endif %}"
+                    onclick="switchTab('totp',this)">
+                <i class="fas fa-mobile-screen"></i> Authenticator
+            </button>
+            {% endif %}
+            <button class="tab" onclick="switchTab('backup',this)">
+                <i class="fas fa-key"></i> Backup Code
+            </button>
+        </div>
+
+        <!-- Face Recognition -->
+        {% if face_enabled %}
+        <div class="tab-pane active" id="pane-face">
+            <div class="cam-wrap" id="camWrap">
+                <video id="videoEl" autoplay playsinline muted></video>
+                <canvas id="canvasEl"></canvas>
+                <div class="cam-overlay">
+                    <div class="face-ring" id="faceRing"></div>
+                </div>
+                <div class="cam-status" id="camStatus">Starting camera...</div>
+            </div>
+            <div class="blink-prompt" id="blinkPrompt"></div>
+            <div class="conf-label">Match confidence</div>
+            <div class="confidence-bar">
+                <div class="confidence-fill" id="confFill" style="width:0%;"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:16px;">
+                <span>0%</span>
+                <span id="confLabel">—</span>
+                <span>100%</span>
+            </div>
+            <form method="post" id="faceForm">
+                {% csrf_token %}
+                <input type="hidden" name="method" value="face">
+                <input type="hidden" name="embedding" id="embeddingInput">
+                <button type="submit" class="btn btn-primary" id="faceSubmitBtn" disabled>
+                    <i class="fas fa-shield-check"></i> Verify Identity
+                </button>
+            </form>
+        </div>
+        {% endif %}
+
+        <!-- TOTP -->
+        <div class="tab-pane {% if not face_enabled and totp_enabled %}active{% endif %}" id="pane-totp">
+            <div class="alert alert-info" style="margin-bottom:18px;">
+                <i class="fas fa-mobile-screen-button"></i>
+                Open your authenticator app and enter the 6-digit code.
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="method" value="totp">
+                <div class="form-group">
+                    <label>6-Digit Code</label>
+                    <input type="text" name="totp_code" maxlength="6"
+                           placeholder="000000" autocomplete="one-time-code"
+                           autofocus inputmode="numeric" pattern="\d{6}" required>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-shield-check"></i> Verify Code
+                </button>
+            </form>
+        </div>
+
+        <!-- Backup Code -->
+        <div class="tab-pane {% if not face_enabled and not totp_enabled %}active{% endif %}" id="pane-backup">
+            <div class="alert alert-info" style="margin-bottom:18px;">
+                <i class="fas fa-key"></i>
+                Enter one of your 8-character backup codes. Each code can only be used once.
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="method" value="backup">
+                <div class="form-group">
+                    <label>Backup Code</label>
+                    <input type="text" name="backup_code" maxlength="8"
+                           placeholder="XXXX0000" autocomplete="off"
+                           style="letter-spacing:4px;text-transform:uppercase;" required>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-unlock"></i> Use Backup Code
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="footer-links">
+        <a href="{% url 'terms_view' %}" target="_blank">Terms & Conditions</a>
+        &nbsp;·&nbsp;
+        <a href="{% url 'login' %}">← Back to Login</a>
+    </div>
+</div>
+
+<!-- face-api.js from CDN -->
+<script src="/static/faceapi/face-api.min.js"></script>
+<script>
+// ── Tab switching ──────────────────────────────────────────────────────────────
+function switchTab(id, btn) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    const pane = document.getElementById('pane-'+id);
+    if (pane) pane.classList.add('active');
+    if (id === 'face') startCamera();
+}
+
+// ── Face Recognition ──────────────────────────────────────────────────────────
+const MODEL_URL = '/static/faceapi/weights';
+let modelsLoaded = false;
+let stream       = null;
+let scanInterval = null;
+let blinkStep    = 0;           // 0=idle, 1=blink, 2=turn-left, 3=turn-right
+let blinkDone    = false;
+let capturedEmb  = null;
+
+const video    = document.getElementById('videoEl');
+const canvas   = document.getElementById('canvasEl');
+const ring     = document.getElementById('faceRing');
+const status   = document.getElementById('camStatus');
+const blinkP   = document.getElementById('blinkPrompt');
+const confFill = document.getElementById('confFill');
+const confLbl  = document.getElementById('confLabel');
+const submitBtn= document.getElementById('faceSubmitBtn');
+const embInput = document.getElementById('embeddingInput');
+
+async function loadModels() {
+    if (modelsLoaded) return true;
+    status.textContent = 'Loading face models...';
+    try {
+        await Promise.all([
+            faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+            faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+            faceapi.nets.eyeAspectRatioNet ? faceapi.nets.eyeAspectRatioNet.loadFromUri(MODEL_URL).catch(()=>{}) : Promise.resolve(),
+        ]);
+        modelsLoaded = true;
+        return true;
+    } catch(e) {
+        status.textContent = 'Model load failed. Check internet connection.';
+        return false;
+    }
+}
+
+async function startCamera() {
+    if (stream) return;
+    const ok = await loadModels();
+    if (!ok) return;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: 640, height: 480 }
+        });
+        video.srcObject = stream;
+        await new Promise(r => video.onloadedmetadata = r);
+        status.textContent = 'Position your face in the circle';
+        ring.className = 'face-ring scanning';
+        startLivenessChallenge();
+    } catch(e) {
+        status.textContent = 'Camera not available — use authenticator app instead.';
+        ring.className = 'face-ring fail';
+    }
+}
+
+function startLivenessChallenge() {
+    // Liveness: ask user to blink
+    blinkStep = 1;
+    blinkP.textContent = '👁 Please blink once to confirm you are live';
+    scanInterval = setInterval(scanFace, 300);
+}
+
+async function scanFace() {
+    if (!video.videoWidth) return;
+    const detections = await faceapi
+        .detectSingleFace(video, new faceapi.SsdMobilenetv1Options({minConfidence: 0.5}))
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+    if (!detections) {
+        status.textContent = 'No face detected — move closer';
+        ring.className = 'face-ring scanning';
+        return;
+    }
+
+    status.textContent = 'Face detected — hold still';
+
+    // Simple blink detection via eye openness (landmark-based EAR approximation)
+    if (blinkStep === 1 && !blinkDone) {
+        const lm = detections.landmarks;
+        const leftEye  = lm.getLeftEye();
+        const rightEye = lm.getRightEye();
+        const ear = eyeAspectRatio(leftEye) + eyeAspectRatio(rightEye);
+        if (ear < 0.25) {  // Eyes closed
+            blinkDone = true;
+            blinkP.textContent = '✓ Blink detected!';
+            setTimeout(() => {
+                blinkP.textContent = '';
+                blinkStep = 0;
+                captureAndVerify(detections.descriptor);
+            }, 600);
+        }
+        return;
+    }
+
+    if (blinkStep === 0 && blinkDone) {
+        captureAndVerify(detections.descriptor);
+    }
+}
+
+function eyeAspectRatio(eye) {
+    // EAR = (|p2-p6| + |p3-p5|) / (2*|p1-p4|)
+    const d = (a, b) => Math.hypot(a.x-b.x, a.y-b.y);
+    return (d(eye[1],eye[5]) + d(eye[2],eye[4])) / (2 * d(eye[0],eye[3]));
+}
+
+async function captureAndVerify(descriptor) {
+    if (scanInterval) { clearInterval(scanInterval); scanInterval = null; }
+
+    const embedding = Array.from(descriptor);
+    embInput.value  = JSON.stringify(embedding);
+
+    // Quick client-side preview via API
+    try {
+        const csrf = document.querySelector('[name=csrfmiddlewaretoken]');
+        const r = await fetch('/accounts/mfa/api/verify/', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json',
+                      'X-CSRFToken': csrf ? csrf.value : ''},
+            body: JSON.stringify({embedding})
+        });
+        const d = await r.json();
+        const pct = Math.round((d.confidence || 0) * 100);
+        confFill.style.width = pct + '%';
+        confLbl.textContent  = pct + '%';
+
+        if (d.pass) {
+            ring.className   = 'face-ring success';
+            status.textContent = `✓ Match confirmed (${pct}%)`;
+            capturedEmb      = embedding;
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-shield-check"></i> Confirm & Enter BeitDesk';
+            submitBtn.style.background = 'var(--success)';
+            // Auto-submit after 1s
+            setTimeout(() => document.getElementById('faceForm').submit(), 1000);
+        } else {
+            ring.className   = 'face-ring fail';
+            status.textContent = `Face not matched (${pct}%). Retrying...`;
+            setTimeout(() => {
+                ring.className = 'face-ring scanning';
+                blinkDone = false; blinkStep = 1;
+                blinkP.textContent = '👁 Please blink again';
+                scanInterval = setInterval(scanFace, 300);
+            }, 2000);
+        }
+    } catch(e) {
+        // API unavailable — submit anyway and let server decide
+        submitBtn.disabled = false;
+        status.textContent = 'Submitting for server verification...';
+    }
+}
+
+// Auto-start camera if face tab is active
+{% if face_enabled %}
+window.addEventListener('load', () => setTimeout(startCamera, 300));
+{% endif %}
+</script>
+</body>
+</html>

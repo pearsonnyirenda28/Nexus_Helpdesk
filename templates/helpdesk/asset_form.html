@@ -1,0 +1,161 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block page_title %}Asset Registry{% endblock %}
+{% block breadcrumb %}Assets / {{ page_title }}{% endblock %}
+
+{% block content %}
+<div style="max-width:760px;">
+    <div class="flex-between mb-6">
+        <h1 style="font-size:20px;">{{ page_title }}</h1>
+        <a href="{% if asset %}{% url 'asset_detail' asset.pk %}{% else %}{% url 'asset_list' %}{% endif %}"
+           class="btn btn-secondary btn-sm"><i class="fas fa-arrow-left"></i> Cancel</a>
+    </div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="header-icon" style="background:rgba(201,162,39,.2);color:var(--gold);">
+                    <i class="fas fa-computer"></i>
+                </div>
+                <h6>Asset Identification</h6>
+            </div>
+            <div class="card-body">
+                <div class="grid grid-2 gap-3">
+                    <div class="form-group">
+                        <label class="form-label">Asset Tag *
+                            <span style="font-size:10px;font-weight:400;color:var(--text-muted);">e.g. BM-PC-001</span>
+                        </label>
+                        <input type="text" name="asset_tag" class="form-control mono"
+                               value="{{ asset.asset_tag|default:'' }}"
+                               placeholder="BM-PC-001" required
+                               {% if asset %}readonly style="opacity:.7;"{% endif %}>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Asset Name *</label>
+                        <input type="text" name="name" class="form-control"
+                               value="{{ asset.name|default:'' }}"
+                               placeholder="e.g. Dell OptiPlex 7090" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Type</label>
+                        <select name="asset_type" class="form-select">
+                            {% for val, label in type_choices %}
+                            <option value="{{ val }}"
+                                {% if asset.asset_type == val %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select name="status" class="form-select">
+                            {% for val, label in status_choices %}
+                            <option value="{{ val }}"
+                                {% if asset.status == val %}selected
+                                {% elif not asset and val == 'ACTIVE' %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Serial Number</label>
+                        <input type="text" name="serial_number" class="form-control mono"
+                               value="{{ asset.serial_number|default:'' }}" placeholder="SN-XXXX">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Manufacturer</label>
+                        <input type="text" name="manufacturer" class="form-control"
+                               value="{{ asset.manufacturer|default:'' }}" placeholder="e.g. Dell, HP, Lenovo">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Model</label>
+                        <input type="text" name="model" class="form-control"
+                               value="{{ asset.model|default:'' }}" placeholder="e.g. OptiPlex 7090">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Location</label>
+                        <input type="text" name="location" class="form-control"
+                               value="{{ asset.location|default:'' }}" placeholder="e.g. Finance Office, Room 3">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="header-icon" style="background:rgba(88,166,255,.15);color:var(--info-text);">
+                    <i class="fas fa-user"></i>
+                </div>
+                <h6>Assignment &amp; Department</h6>
+            </div>
+            <div class="card-body">
+                <div class="grid grid-2 gap-3">
+                    <div class="form-group">
+                        <label class="form-label">Assigned To (Name)</label>
+                        <input type="text" name="assigned_to_name" class="form-control"
+                               value="{{ asset.assigned_to_name|default:'' }}"
+                               placeholder="Full name of assigned user">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Department</label>
+                        <input type="text" name="department" class="form-control"
+                               value="{{ asset.department|default:'' }}"
+                               placeholder="e.g. Revenue Department">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Section</label>
+                        <input type="text" name="section" class="form-control"
+                               value="{{ asset.section|default:'' }}"
+                               placeholder="e.g. Accounts Payable">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="header-icon" style="background:rgba(35,134,54,.2);color:var(--success-text);">
+                    <i class="fas fa-receipt"></i>
+                </div>
+                <h6>Purchase &amp; Warranty</h6>
+            </div>
+            <div class="card-body">
+                <div class="grid grid-3 gap-3">
+                    <div class="form-group">
+                        <label class="form-label">Purchase Date</label>
+                        <input type="date" name="purchase_date" class="form-control"
+                               value="{{ asset.purchase_date|date:'Y-m-d'|default:'' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Purchase Cost (USD)</label>
+                        <input type="number" name="purchase_cost" class="form-control"
+                               step="0.01" min="0"
+                               value="{{ asset.purchase_cost|default:'' }}" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Warranty Expiry</label>
+                        <input type="date" name="warranty_expiry" class="form-control"
+                               value="{{ asset.warranty_expiry|date:'Y-m-d'|default:'' }}">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notes</label>
+                    <textarea name="notes" class="form-control" rows="3"
+                              placeholder="Any additional notes about this asset...">{{ asset.notes|default:'' }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <div style="display:flex;gap:10px;">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i>
+                {% if asset %}Update Asset{% else %}Register Asset{% endif %}
+            </button>
+            <a href="{% if asset %}{% url 'asset_detail' asset.pk %}{% else %}{% url 'asset_list' %}{% endif %}"
+               class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
