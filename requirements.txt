@@ -2,26 +2,34 @@
 Django==5.2.3
 django-widget-tweaks==1.5.0
 
-# ── Environment & Configuration ───────────────────────────────────────────────
+# ── Environment ───────────────────────────────────────────────────────────────
 python-dotenv==1.0.1
 
 # ── Database ──────────────────────────────────────────────────────────────────
-psycopg2-binary==2.9.12        # PostgreSQL driver (production)
-# SQLite is built into Python — no install needed for development
+psycopg2-binary==2.9.12
 
-# ── Static Files & HTTPS ─────────────────────────────────────────────────────
-whitenoise==6.7.0              # Serve static files in production
-werkzeug>=3.0.0                # HTTPS dev server (python run_https.py)
+# ── Static Files ──────────────────────────────────────────────────────────────
+whitenoise==6.7.0
 
-# ── MFA — Face Recognition & TOTP ────────────────────────────────────────────
-pyotp==2.9.0                   # TOTP/HOTP authenticator codes (Google Authenticator)
-qrcode[pil]==7.4.2             # QR code generation for TOTP enrollment
-Pillow>=10.0.0                 # Image processing (QR codes + PWA icon generation)
+# ── WebSocket / ASGI (Real-Time Notifications) ───────────────────────────────
+# Replaces WSGI runserver — handles both HTTP and WebSocket connections
+channels==4.3.2
+daphne>=4.1.2
 
-# ── Optional: Server-side Web Push Notifications ─────────────────────────────
-# Uncomment when you have VAPID keys configured in settings.py
-# pywebpush>=2.0.0
+# ── HTTPS / LAN ───────────────────────────────────────────────────────────────
+werkzeug>=3.0.0
 
-# ── Optional: Production Server ───────────────────────────────────────────────
-# Uncomment for Linux production deployment behind Nginx
-# gunicorn>=21.0.0
+# ── MFA ───────────────────────────────────────────────────────────────────────
+pyotp==2.9.0
+qrcode[pil]==7.4.2
+Pillow>=10.0.0
+
+# ── Web Push Notifications (VAPID) ───────────────────────────────────────────
+pywebpush>=2.0.0
+cryptography>=42.0.0
+
+# ── Optional Production ───────────────────────────────────────────────────────
+# gunicorn>=21.0.0        # HTTP-only (no WebSocket)
+# uvicorn[standard]>=0.30 # Alternative ASGI server
+dj-database-url
+psycopg2-binary   # or psycopg[binary] for newer versions

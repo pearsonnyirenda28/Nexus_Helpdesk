@@ -18,13 +18,16 @@ DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 ALLOWED_HOSTS = ['*']
 
 # ── Multi-device / LAN / Deployment access ─────────────────────────────────────
+# NOTE: Django does NOT support wildcards like 'https://*.vercel.app' in
+# CSRF_TRUSTED_ORIGINS. Only exact origins count. Add your real deployment
+# domains below (one per line), no scheme wildcards.
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://127.0.0.1:8000',
-    'https://*.vercel.app',
-    'https://*.onrender.com',
-    # Add your explicit deployment domain here, e.g.:
-    # 'https://nexus-helpdesk-git-vercel-de-952033-pearsonnyirenda28s-projects.vercel.app',
+    'https://beit-desk.vercel.app',
+    # Preview deployment pattern (Vercel gives each preview a unique subdomain).
+    # Add the specific preview URL you're testing if you need CSRF to work there:
+    # 'https://beit-desk-exgqrwp76-pearsonnyirenda28s-projects.vercel.app',
 ]
 
 # ── Security & HTTPS Enforcement (Required for WebCam / getUserMedia) ─────────
@@ -57,9 +60,13 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',          # <-- Whitenoise
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'helpdesk.db_router.YearDatabaseMiddleware',
+    # ── Year database middleware DISABLED ──
+    # It was injecting SQLite connections at request time, which fails on
+    # Vercel's read-only filesystem. Re-enable only after refactoring to
+    # Postgres schemas (see notes at bottom of file).
+    # 'helpdesk.db_router.YearDatabaseMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -68,7 +75,9 @@ MIDDLEWARE = [
     'helpdesk.middleware.AuditMiddleware',
 ]
 
-DATABASE_ROUTERS = ['helpdesk.db_router.YearDatabaseRouter']
+# ── Year database router DISABLED ──
+# See notes at bottom of file for how to reinstate year separation correctly.
+DATABASE_ROUTERS = []
 
 ROOT_URLCONF = 'nexus_helpdesk.urls'
 
@@ -101,16 +110,20 @@ def strip_quotes(value):
             return value[1:-1]
     return value
 
-# ── Database ──────────────────────────────────────────────────────────────────
+# ── Database (Neon PostgreSQL) ───────────────────────────────────────────────
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': strip_quotes(os.environ.get('DB_NAME', 'neondb')),
         'USER': strip_quotes(os.environ.get('DB_USER', 'neondb_owner')),
         'PASSWORD': strip_quotes(os.environ.get('DB_PASSWORD')),
-        'HOST': strip_quotes(os.environ.get('DB_HOST', 'ep-bitter-tooth-awd1rg7u-pooler.c-12.us-east-1.aws.neon.tech')),
+        'HOST': strip_quotes(os.environ.get(
+            'DB_HOST',
+            'ep-divine-frost-awqtvxaj-pooler.c-12.us-east-1.aws.neon.tech'
+        )),
         'PORT': strip_quotes(os.environ.get('DB_PORT', '5432')),
         'OPTIONS': {'sslmode': 'require'},
+        'CONN_MAX_AGE': 0,   # serverless functions should not reuse connections
     }
 }
 
@@ -132,7 +145,6 @@ STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# WhiteNoise storage engine compatibility for Django 4.2+ / 5.0+
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
@@ -159,3 +171,36 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 VOIP_DEFAULT_EXTENSION_LENGTH = 4
 VOIP_CALL_TIMEOUT_MINUTES = 60
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# NOTES — restoring per-year databases later (do NOT re-enable SQLite on Vercel)
+# ────────────────────────────────────────────────────────────────────────────
+# Vercel's serverless filesystem is read-only outside /tmp, and /tmp is wiped
+# on every cold start. SQLite cannot be used there.
+#
+# To restore the "Database Year" feature, use Postgres schemas in the SAME
+# Neon database instead of separate SQLite files:
+#
+#   1. Create schemas:  CREATE SCHEMA year_2024; CREATE SCHEMA year_2025;
+#   2. Middleware sets the search path per request:
+#
+#          from django.db import connection
+#
+#          class YearDatabaseMiddleware:
+#              def __init__(self, get_response):
+#                  self.get_response = get_response
+#
+#              def __call__(self, request):
+#                  year = request.session.get('db_year')
+#                  if year:
+#                      with connection.cursor() as cur:
+#                          cur.execute(f'SET search_path TO year_{year}, public')
+#                  return self.get_response(request)
+#
+#   3. Router always returns 'default' (all data lives in the same DB).
+#   4. Run migrations once per schema.
+#
+# Only after that refactor should YearDatabaseMiddleware be re-added to
+# MIDDLEWARE and YearDatabaseRouter re-added to DATABASE_ROUTERS.
+# ────────────────────────────────────────────────────────────────────────────

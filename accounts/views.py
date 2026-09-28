@@ -739,6 +739,13 @@ def mfa_settings(request):
         name=request.user.email or request.user.username,
         issuer_name='BeitDesk — Beitbridge Municipality')
 
+    # Always generate backup codes if none exist (so they show on first visit)
+    if not profile.totp_backup_codes:
+        import secrets
+        codes = [secrets.token_hex(4).upper() for _ in range(8)]
+        profile.totp_backup_codes = json.dumps(codes)
+        profile.save(update_fields=['totp_backup_codes'])
+
     backup_codes = []
     if profile.totp_backup_codes:
         try: backup_codes = json.loads(profile.totp_backup_codes)
