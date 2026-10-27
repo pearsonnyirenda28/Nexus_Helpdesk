@@ -56,7 +56,7 @@ management, VoIP call logging, role-based access control, and a full audit trail
 
 ```cmd
 cd C:\Users\YourName\Documents
-git clone https://github.com/your-username/beitdesk.git
+git clone https://github.com/pearsonnyirenda28/beitdesk.git
 cd beitdesk
 ```
 
@@ -138,7 +138,7 @@ Creates 5 staff users, 8 categories, 15 tickets, 20 VoIP call records.
 python manage.py runserver
 ```
 
-Open **http://127.0.0.1:8000** — login: `admin` / `admin123!`
+Open **http://127.0.0.1:8000** 
 
 ---
 
@@ -147,7 +147,7 @@ Open **http://127.0.0.1:8000** — login: `admin` / `admin123!`
 ### 1. Clone and set up environment
 
 ```bash
-git clone https://github.com/your-username/beitdesk.git
+git clone https://github.com/pearsonnyirenda28/beitdesk.git
 cd beitdesk
 python3 -m venv venv
 source venv/bin/activate
@@ -169,7 +169,7 @@ sudo -u postgres psql
 
 ```sql
 CREATE DATABASE beitdesk;
-CREATE USER beitdesk_user WITH PASSWORD 'StrongPassword123!';
+CREATE USER beitdesk_user WITH PASSWORD 'yourpassword!';
 ALTER ROLE beitdesk_user SET client_encoding TO 'utf8';
 ALTER ROLE beitdesk_user SET default_transaction_isolation TO 'read committed';
 ALTER ROLE beitdesk_user SET timezone TO 'Africa/Harare';
@@ -234,7 +234,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'beitdesk',
         'USER': 'beitdesk_user',
-        'PASSWORD': 'StrongPassword123!',
+        'PASSWORD': 'yourpassword',
         'HOST': 'localhost',
         'PORT': '5432',
     }
